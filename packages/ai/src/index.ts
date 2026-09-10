@@ -1,17 +1,28 @@
-import { MockEmbeddingProvider } from "./mockEmbedding.js";
-import { MockLLMProvider } from "./mockLlm.js";
+export type {
+  LLMMessage,
+  LLMCompletionOptions,
+  LLMCompletionResult,
+  LLMProvider,
+  EmbeddingProvider,
+} from "./types.js";
 
-export type { LLMProvider, EmbeddingProvider, LLMCompleteOptions } from "./types.js";
-export { MockLLMProvider } from "./mockLlm.js";
-export { MockEmbeddingProvider, hashToVector } from "./mockEmbedding.js";
-export { OllamaLLMProvider, OllamaEmbeddingProvider, type OllamaOptions } from "./ollama.js";
+export {
+  MockLLMProvider,
+  MockEmbeddingProvider,
+  createMockProviders,
+  type MockLLMResponseRule,
+} from "./mockProviders.js";
 
-export function createMockProviders(dimensions = 64): {
-  llm: MockLLMProvider;
-  embedding: MockEmbeddingProvider;
-} {
-  return {
-    llm: new MockLLMProvider(),
-    embedding: new MockEmbeddingProvider(dimensions),
-  };
-}
+export {
+  OllamaLLMProvider,
+  OllamaEmbeddingProvider,
+  type OllamaLLMOptions,
+  type OllamaEmbeddingOptions,
+} from "./ollamaProviders.js";
+
+export {
+  buildSafePrompt,
+  containsUntrustedMarkers,
+  type SafePromptInput,
+  type SafePrompt,
+} from "./promptSafety.js";

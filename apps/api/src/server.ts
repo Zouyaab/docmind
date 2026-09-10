@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
@@ -41,6 +42,9 @@ export async function buildServer() {
     done(null, body);
   });
 
+  await app.register(cors, {
+    origin: ["http://127.0.0.1:5173", "http://localhost:5173"],
+  });
   await app.register(swagger, {
     openapi: {
       info: { title: "DocMind API", version: DOCMIND_VERSION },

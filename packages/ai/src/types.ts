@@ -1,16 +1,22 @@
-export interface LLMCompleteOptions {
+export interface LLMMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+export interface LLMCompletionOptions {
   temperature?: number;
   maxTokens?: number;
   json?: boolean;
 }
 
+export interface LLMCompletionResult {
+  text: string;
+}
+
 export interface LLMProvider {
-  readonly name: string;
-  complete(prompt: string, options?: LLMCompleteOptions): Promise<string>;
+  complete(messages: LLMMessage[], options?: LLMCompletionOptions): Promise<LLMCompletionResult>;
 }
 
 export interface EmbeddingProvider {
-  readonly name: string;
-  readonly dimensions: number;
   embed(texts: string[]): Promise<number[][]>;
 }

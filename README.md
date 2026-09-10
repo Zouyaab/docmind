@@ -10,8 +10,20 @@ DocMind ingests documents, extracts and chunks text, classifies document type, e
 pnpm install
 pnpm build
 pnpm test
-pnpm dev          # API on http://127.0.0.1:3000
-pnpm dev:web      # Dashboard on http://127.0.0.1:5173
+pnpm.cmd dev
+pnpm.cmd dev:web
+```
+
+- API: http://127.0.0.1:3000 (OpenAPI UI at `/docs`)
+- Dashboard: http://127.0.0.1:5173
+
+**Windows PowerShell:** quote paths with spaces, and prefer `pnpm.cmd` if script execution is disabled:
+
+```powershell
+Set-Location "C:\Users\Zouyaab Hussain\docmind"
+pnpm.cmd install
+pnpm.cmd dev
+pnpm.cmd dev:web
 ```
 
 ## Architecture

@@ -2,8 +2,13 @@ node_modules/
 dist/
 coverage/
 .data/
+.docmind-data/
 *.log
 .env
 .env.local
 .DS_Store
+*.tsbuildinfo
 apps/web/dist/
+
+.tools/
+

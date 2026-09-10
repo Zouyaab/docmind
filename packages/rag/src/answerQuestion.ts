@@ -41,13 +41,13 @@ export async function answerQuestion(input: AnswerQuestionInput): Promise<Answer
     contexts.map((c) => ({ text: c.text, chunkId: c.chunkId })),
   );
 
-  const answer = await input.llm.complete(prompt);
+  const completion = await input.llm.complete([{ role: "user", content: prompt }]);
 
   const citations: Evidence[] = contexts.map((c) => ({
     documentId: c.documentId,
     chunkId: c.chunkId,
-    text: c.text.slice(0, 300),
+    excerpt: c.text.slice(0, 300),
   }));
 
-  return { answer, citations };
+  return { answer: completion.text, citations };
 }

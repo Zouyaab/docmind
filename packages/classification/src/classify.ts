@@ -37,7 +37,7 @@ function heuristicClassify(text: string): ClassificationResult {
     if (idx >= 0) {
       evidence.push({
         documentId: "",
-        text: text.slice(Math.max(0, idx - 20), idx + kw.length + 40),
+        excerpt: text.slice(Math.max(0, idx - 20), idx + kw.length + 40),
       });
       break;
     }
@@ -77,8 +77,8 @@ ${text.slice(0, 4000)}
 </document>`;
 
   try {
-    const raw = await options.llm.complete(prompt, { json: true });
-    const parsed = JSON.parse(raw) as {
+    const raw = await options.llm.complete([{ role: "user", content: prompt }], { json: true });
+    const parsed = JSON.parse(raw.text) as {
       documentType?: string;
       confidence?: number;
     };
