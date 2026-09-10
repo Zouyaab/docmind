@@ -1,0 +1,17 @@
+MASTER SERVICE AGREEMENT
+
+This contract is entered into between DocMind Demo Corp ("Company") and ClientCo ("Client").
+
+Effective Date: 2026-01-01
+Expiration Date: 2027-12-31
+
+Contract value: $125,000
+
+Auto-renewal: true
+Notice period: 14 days
+
+Termination: Either party may terminate with written notice per the notice period above.
+
+Governing Law: State of Delaware
+
+Party obligations include confidentiality and data protection requirements.

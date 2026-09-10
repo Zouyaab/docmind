@@ -1,0 +1,46 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1a1a2e;
+  background: #f4f6fb;
+}
+
+body {
+  margin: 0;
+  padding: 1rem 2rem 3rem;
+}
+
+header {
+  margin-bottom: 1.5rem;
+}
+
+main {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+button {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+pre {
+  background: #f0f2f8;
+  padding: 0.5rem;
+  overflow: auto;
+  font-size: 0.85rem;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 0.4rem;
+  box-sizing: border-box;
+}

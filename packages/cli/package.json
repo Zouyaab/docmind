@@ -1,0 +1,23 @@
+{
+  "name": "@docmind/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "docmind": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@docmind/core": "workspace:*",
+    "@docmind/sdk": "workspace:*"
+  },
+  "files": [
+    "dist"
+  ]
+}

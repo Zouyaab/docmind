@@ -1,0 +1,30 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 3000
+      LOG_LEVEL: info
+    volumes:
+      - docmind-data:/app/.data
+
+  # Optional Postgres for future pgvector integration (not used by MVP API)
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: docmind
+      POSTGRES_PASSWORD: docmind
+      POSTGRES_DB: docmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+volumes:
+  docmind-data:
+  pg-data:

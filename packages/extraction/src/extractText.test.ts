@@ -1,0 +1,51 @@
+import { describe, expect, it } from "vitest";
+import { extractTextFromBytes } from "./extractText.js";
+
+describe("extractTextFromBytes", () => {
+  it("extracts plain text", () => {
+    const bytes = new TextEncoder().encode("Hello world");
+    const result = extractTextFromBytes(bytes, "text/plain");
+    expect(result.status).toBe("ok");
+    expect(result.text).toBe("Hello world");
+  });
+
+  it("extracts markdown as text", () => {
+    const bytes = new TextEncoder().encode("# Title\n\nBody");
+    const result = extractTextFromBytes(bytes, "text/markdown");
+    expect(result.status).toBe("ok");
+    expect(result.text).toContain("Title");
+  });
+
+  it("returns empty status for whitespace-only text", () => {
+    const bytes = new TextEncoder().encode("   \n\t  ");
+    const result = extractTextFromBytes(bytes, "text/plain");
+    expect(result.status).toBe("empty");
+  });
+
+  it("marks unknown mime as unsupported", () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const result = extractTextFromBytes(bytes, "application/octet-stream");
+    expect(result.status).toBe("unsupported_binary");
+    expect(result.text).toBe("");
+  });
+
+  it("attempts heuristic PDF extraction", () => {
+    const pdfLike = `%PDF-1.4
+1 0 obj
+stream
+Hello PDF
+endstream
+`;
+    const bytes = new TextEncoder().encode(pdfLike);
+    const result = extractTextFromBytes(bytes, "application/pdf");
+    expect(result.status).toBe("ok");
+    expect(result.text).toContain("Hello PDF");
+  });
+
+  it("returns unsupported_binary when PDF heuristic finds nothing", () => {
+    const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0xff, 0x00, 0x01]);
+    const result = extractTextFromBytes(bytes, "application/pdf");
+    expect(result.status).toBe("unsupported_binary");
+    expect(result.note).toContain("MVP heuristic");
+  });
+});

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DocMind Dashboard</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>DocMind</h1>
+      <p>Local-first Document Intelligence</p>
+    </header>
+    <main>
+      <section class="card">
+        <h2>Upload</h2>
+        <input type="file" id="file" />
+        <button id="upload">Upload &amp; Process</button>
+        <pre id="upload-result"></pre>
+      </section>
+      <section class="card">
+        <h2>Documents</h2>
+        <button id="refresh">Refresh</button>
+        <ul id="doc-list"></ul>
+      </section>
+      <section class="card">
+        <h2>Ask</h2>
+        <input type="text" id="question" placeholder="Ask about your documents..." />
+        <button id="ask">Ask</button>
+        <pre id="ask-result"></pre>
+      </section>
+      <section class="card">
+        <h2>Metrics</h2>
+        <button id="metrics">Load Metrics</button>
+        <pre id="metrics-result"></pre>
+      </section>
+    </main>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

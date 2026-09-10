@@ -1,0 +1,16 @@
+INVOICE #INV-2026-0042
+
+Bill To: Horizon Analytics LLC
+Invoice Date: 2026-01-15
+Due Date: 2026-02-15
+
+Description                    Amount
+Consulting services            $3,500.00
+Support retainer               $500.00
+
+Subtotal:                      $4,000.00
+Tax:                           $320.00
+Amount Due:                     $4,320.00
+Total Due:                      $4,320.00
+
+Payment terms: Net 30
