@@ -15,23 +15,29 @@
       <section class="card">
         <h2>Upload</h2>
         <input type="file" id="file" />
-        <button id="upload">Upload &amp; Process</button>
+        <button id="upload" type="button">Upload &amp; Process</button>
+        <p id="upload-status" class="status" aria-live="polite"></p>
         <pre id="upload-result"></pre>
       </section>
       <section class="card">
         <h2>Documents</h2>
-        <button id="refresh">Refresh</button>
+        <button id="refresh" type="button">Refresh</button>
+        <p id="docs-empty" class="empty hidden">No documents yet. Upload a file to begin.</p>
         <ul id="doc-list"></ul>
       </section>
       <section class="card">
         <h2>Ask</h2>
         <input type="text" id="question" placeholder="Ask about your documents..." />
-        <button id="ask">Ask</button>
-        <pre id="ask-result"></pre>
+        <button id="ask" type="button">Ask</button>
+        <p id="ask-status" class="status" aria-live="polite"></p>
+        <div id="ask-answer" class="answer"></div>
+        <ul id="ask-citations" class="citations"></ul>
+        <pre id="ask-result" class="hidden"></pre>
       </section>
       <section class="card">
         <h2>Metrics</h2>
-        <button id="metrics">Load Metrics</button>
+        <button id="metrics" type="button">Load Metrics</button>
+        <p id="metrics-status" class="status" aria-live="polite"></p>
         <pre id="metrics-result"></pre>
       </section>
     </main>

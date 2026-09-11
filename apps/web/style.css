@@ -32,6 +32,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 pre {
   background: #f0f2f8;
   padding: 0.5rem;
@@ -43,4 +48,36 @@ input[type="text"] {
   width: 100%;
   padding: 0.4rem;
   box-sizing: border-box;
+}
+
+.status {
+  min-height: 1.25rem;
+  font-size: 0.9rem;
+  color: #334;
+}
+
+.status.error,
+.error {
+  color: #a11;
+}
+
+.empty {
+  color: #667;
+  font-size: 0.9rem;
+}
+
+.hidden {
+  display: none;
+}
+
+.answer {
+  margin-top: 0.75rem;
+  white-space: pre-wrap;
+}
+
+.citations {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+  color: #445;
 }
