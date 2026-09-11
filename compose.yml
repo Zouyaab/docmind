@@ -1,0 +1,4 @@
+# Canonical Compose entry for scanners and `docker compose up` from repo root.
+# Full definition lives under docker/ for Dockerfile co-location.
+include:
+  - path: docker/docker-compose.yml

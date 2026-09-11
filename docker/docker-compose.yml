@@ -1,30 +1,85 @@
+# DocMind application stack (not infrastructure-as-code).
+# This repository is a TypeScript application/backend monorepo.
+# Terraform / Kubernetes / Helm / Pulumi / Ansible are intentionally out of scope.
+#
+# Required: api
+# Optional profiles:
+#   --profile postgres  → Postgres 16 (reserved for future pgvector; unused by MVP API)
+#   --profile ollama    → Local Ollama for optional live inference
+
 services:
   api:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    container_name: docmind-api
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      API_HOST: 0.0.0.0
-      API_PORT: 3000
-      LOG_LEVEL: info
+      API_HOST: "0.0.0.0"
+      API_PORT: "3000"
+      LOG_LEVEL: "info"
+      MAX_UPLOAD_BYTES: "10485760"
+      # Leave empty locally; set via compose override or secrets in production.
+      API_TOKEN: ""
+      OLLAMA_BASE_URL: "http://ollama:11434"
+      OLLAMA_MODEL: "llama3.2"
     volumes:
       - docmind-data:/app/.data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      - docmind
 
-  # Optional Postgres for future pgvector integration (not used by MVP API)
   postgres:
     image: postgres:16-alpine
     profiles: ["postgres"]
+    container_name: docmind-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: docmind
       POSTGRES_PASSWORD: docmind
       POSTGRES_DB: docmind
-    ports:
-      - "5432:5432"
     volumes:
       - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docmind -d docmind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docmind
+    # Port published only when the postgres profile is enabled.
+    ports:
+      - "5432:5432"
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    container_name: docmind-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - docmind
+    # Not published by default; API reaches it on the internal network.
 
 volumes:
   docmind-data:
   pg-data:
+  ollama-data:
+
+networks:
+  docmind:
+    driver: bridge
