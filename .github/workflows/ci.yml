@@ -9,41 +9,76 @@ permissions:
   contents: read
 
 jobs:
-  quality:
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: 11.22.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
-
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
-
       - name: Lint
         run: pnpm lint
-
       - name: Format check
         run: pnpm format:check
 
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm typecheck
 
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
       - name: Test with coverage gates
         run: pnpm test:coverage
 
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
       - name: Production dependency audit (fail on high+)
         run: pnpm audit:prod
-
       - name: Build
         run: pnpm build
-
       - name: Validate Compose file
         run: docker compose -f docker/docker-compose.yml config
