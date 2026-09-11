@@ -7,3 +7,7 @@ allowBuilds:
   sharp: true
 
 confirmModulesPurge: false
+
+# Force patched @fastify/static for swagger-ui transitive dep (GHSA-83w8-p2f5-377r)
+overrides:
+  "@fastify/static": "^10.1.3"

@@ -5,9 +5,13 @@ on:
     branches: [main, master]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -20,8 +24,8 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Install
-        run: pnpm install
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm lint
@@ -32,8 +36,14 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test with coverage
+      - name: Test with coverage gates
         run: pnpm test:coverage
+
+      - name: Production dependency audit (fail on high+)
+        run: pnpm audit:prod
 
       - name: Build
         run: pnpm build
+
+      - name: Validate Compose file
+        run: docker compose -f docker/docker-compose.yml config

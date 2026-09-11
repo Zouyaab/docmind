@@ -2,10 +2,29 @@
   "name": "docmind",
   "version": "0.1.0",
   "private": true,
-  "description": "Local-first AI Document Intelligence & Decision Engine",
+  "description": "Local-first AI Document Intelligence & Decision Engine — TypeScript application/backend monorepo (API, CLI, SDK, RAG, decision engine)",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.22.0",
+  "keywords": [
+    "document-intelligence",
+    "rag",
+    "typescript",
+    "monorepo",
+    "fastify",
+    "decision-engine",
+    "local-first",
+    "application",
+    "backend"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zouyaab/docmind.git"
+  },
+  "homepage": "https://github.com/Zouyaab/docmind",
+  "bugs": {
+    "url": "https://github.com/Zouyaab/docmind/issues"
+  },
   "engines": {
     "node": ">=20.0.0"
   },
