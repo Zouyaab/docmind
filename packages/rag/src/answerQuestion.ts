@@ -1,6 +1,7 @@
 import type { LLMProvider, EmbeddingProvider } from "@docmind/ai";
 import type { Evidence } from "@docmind/core";
 import type { SearchOptions, VectorStore } from "@docmind/retrieval";
+import { isAnswerGrounded } from "./grounding.js";
 import { buildRagPrompt, containsInjectionAttempt, sanitizeUntrustedContext } from "./prompt.js";
 
 export interface AnswerQuestionInput {
@@ -18,10 +19,17 @@ export interface AnswerQuestionResult {
   citations: Evidence[];
   injectionBlocked?: boolean;
   insufficientEvidence?: boolean;
+  grounded?: boolean;
   scores?: number[];
 }
 
 const DEFAULT_MIN_SCORE = 0;
+
+const INSUFFICIENT_MESSAGE =
+  "Insufficient evidence: no sufficiently relevant passages were retrieved to answer confidently.";
+
+const UNGROUNDED_MESSAGE =
+  "Insufficient evidence: the model response was not adequately supported by retrieved passages.";
 
 export async function answerQuestion(input: AnswerQuestionInput): Promise<AnswerQuestionResult> {
   if (containsInjectionAttempt(input.query)) {
@@ -29,6 +37,7 @@ export async function answerQuestion(input: AnswerQuestionInput): Promise<Answer
       answer: "Query blocked: potential prompt injection detected.",
       citations: [],
       injectionBlocked: true,
+      grounded: false,
     };
   }
 
@@ -45,10 +54,10 @@ export async function answerQuestion(input: AnswerQuestionInput): Promise<Answer
 
   if (hits.length === 0) {
     return {
-      answer:
-        "Insufficient evidence: no sufficiently relevant passages were retrieved to answer confidently.",
+      answer: INSUFFICIENT_MESSAGE,
       citations: [],
       insufficientEvidence: true,
+      grounded: false,
       scores: [],
     };
   }
@@ -71,6 +80,19 @@ export async function answerQuestion(input: AnswerQuestionInput): Promise<Answer
   );
 
   const completion = await input.llm.complete([{ role: "user", content: prompt }]);
+  const answerText = completion.text.trim();
+  const evidenceTexts = contexts.map((c) => c.text);
+  const grounded = isAnswerGrounded(answerText, evidenceTexts);
+
+  if (!grounded || answerText.length === 0) {
+    return {
+      answer: UNGROUNDED_MESSAGE,
+      citations: [],
+      insufficientEvidence: true,
+      grounded: false,
+      scores: contexts.map((c) => c.score),
+    };
+  }
 
   const citations: Evidence[] = contexts.map((c) => {
     const evidence: Evidence = {
@@ -85,8 +107,9 @@ export async function answerQuestion(input: AnswerQuestionInput): Promise<Answer
   });
 
   return {
-    answer: completion.text,
+    answer: answerText,
     citations,
+    grounded: true,
     scores: contexts.map((c) => c.score),
   };
 }

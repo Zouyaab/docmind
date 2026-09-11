@@ -4,3 +4,4 @@ export {
   type AnswerQuestionResult,
 } from "./answerQuestion.js";
 export { buildRagPrompt, containsInjectionAttempt, sanitizeUntrustedContext } from "./prompt.js";
+export { isAnswerGrounded, significantTokens } from "./grounding.js";

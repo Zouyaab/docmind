@@ -145,6 +145,13 @@ function extractFieldsHeuristic(text: string): Record<string, unknown> {
 }
 
 function extractDocumentSection(prompt: string): string {
+  const blockMatch = prompt.match(
+    /<untrusted_document_data>\s*([\s\S]*?)\s*<\/untrusted_document_data>/i,
+  );
+  if (blockMatch?.[1]) {
+    return blockMatch[1].trim();
+  }
+
   const markers = [
     "<<<untrusted document start>>>",
     "<document>",
