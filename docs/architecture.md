@@ -1,48 +1,63 @@
 # DocMind Architecture
 
-DocMind is a **local-first AI Document Intelligence & Decision Engine**.
+DocMind is a **local-first application/backend** monorepo for document intelligence and deterministic decisions.
 
 ## Pipeline
 
-```text
-Ingest → Extract/Chunk → Classify → Structured Extract
-      → Embed → Search → RAG → Deterministic Decisions
+```mermaid
+flowchart TD
+  A[Ingest upload] --> B[Extract text]
+  B --> C[Chunk + provenance]
+  C --> D[Classify]
+  D --> E[Structured field extract]
+  E --> F[Embed chunks]
+  F --> G[Vector retrieval]
+  G --> H[RAG Q&A with citations]
+  E --> I[Decision engine]
+  H --> J[API / SDK / CLI responses]
+  I --> J
 ```
 
-LLM providers interpret and extract. A separate **decision engine** applies deterministic rules.
+```text
+Ingest → Extract → Chunk → Classify → Embed → Retrieve → RAG
+                                      ↘ Decision Engine
+```
 
-## Monorepo layout
+## AI interpretation vs deterministic rules
 
-| Path                       | Responsibility                        |
-| -------------------------- | ------------------------------------- |
-| `packages/core`            | Domain types, IDs, confidence, errors |
-| `packages/config`          | Environment parsing                   |
-| `packages/ingestion`       | Secure upload, MIME, hashing, storage |
-| `packages/extraction`      | Parse text, chunk with provenance     |
-| `packages/ai`              | LLM + embedding provider abstractions |
-| `packages/classification`  | Document type classification          |
-| `packages/embeddings`      | Chunk embedding orchestration         |
-| `packages/retrieval`       | Vector store + semantic search        |
-| `packages/rag`             | Citation-aware Q&A                    |
-| `packages/decision-engine` | Deterministic risk/decision rules     |
-| `packages/evaluation`      | Offline metrics over fixtures         |
-| `packages/observability`   | Metrics + error tracking              |
-| `packages/sdk`             | Typed HTTP client                     |
-| `packages/cli`             | `docmind` CLI                         |
-| `apps/api`                 | Fastify API + OpenAPI                 |
-| `apps/web`                 | Vite dashboard                        |
+| Layer                                                     | Responsibility                             |
+| --------------------------------------------------------- | ------------------------------------------ |
+| LLM / heuristics (`packages/ai`, `classification`, `rag`) | Interpret text, classify, answer questions |
+| Decision engine (`packages/decision-engine`)              | Apply explicit rules to structured facts   |
 
-## Design decisions
+The LLM does **not** decide ALLOW / REVIEW / REJECT. Rules do.
 
-1. **pnpm workspaces + TypeScript project references** — one lockfile, typed packages.
-2. **Provider interfaces** — swappable LLM, embedding, vector, and document stores.
-3. **Mock providers in default tests** — no Ollama/internet required for CI.
-4. **In-memory stores for unit/e2e** — Postgres/pgvector optional via Docker.
-5. **Prompt injection boundary** — document text is untrusted data, never system instructions.
-6. **Evidence everywhere** — extraction, classification, RAG, and decisions carry source refs.
+## Provider abstractions
+
+- `LLMProvider` / `EmbeddingProvider` interfaces
+- Default runtime/tests: **Mock** providers (deterministic, offline)
+- Optional: Ollama HTTP providers for local models
+- Vector store interface with in-memory implementation today; Postgres/pgvector reserved in Compose profile
+
+## Provenance / evidence
+
+Chunks retain document id, offsets, and optional page numbers. RAG returns citations with source chunk text. Decision results reference which rules fired.
+
+## Observability
+
+- Structured Fastify/Pino JSON logs with `requestId`
+- Metrics registry counters/latencies
+- Error tracker with secret redaction; clients never receive stack traces
+
+## Security boundaries
+
+1. Uploaded files validated before storage
+2. Blob keys cannot escape the storage root
+3. Document text wrapped as untrusted data in prompts
+4. Optional Bearer auth, Helmet headers, rate limits
 
 ## Quality gates
 
 ```bash
-pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:coverage && pnpm build
+pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm audit:prod
 ```
