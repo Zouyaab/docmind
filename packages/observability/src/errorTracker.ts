@@ -8,6 +8,9 @@ export interface TrackedError {
   context?: Record<string, unknown>;
 }
 
+/** Optional external sink (Sentry, Datadog, etc.) for production deployments. */
+export type ErrorSink = (error: TrackedError) => void | Promise<void>;
+
 const SECRET_PATTERNS: RegExp[] = [
   /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi,
   /api[_-]?token[=:\s]+[^\s,;]+/gi,
@@ -49,12 +52,18 @@ export interface ErrorTracker {
   track(error: unknown, context?: Record<string, unknown>): TrackedError;
   list(): TrackedError[];
   clear(): void;
+  addSink(sink: ErrorSink): void;
 }
 
-export function createErrorTracker(): ErrorTracker {
+export function createErrorTracker(options: { sinks?: ErrorSink[] } = {}): ErrorTracker {
   const errors: TrackedError[] = [];
+  const sinks: ErrorSink[] = [...(options.sinks ?? [])];
 
   return {
+    addSink(sink: ErrorSink): void {
+      sinks.push(sink);
+    },
+
     track(error: unknown, context?: Record<string, unknown>): TrackedError {
       const message =
         error instanceof Error ? redactString(error.message) : redactString(String(error));
@@ -78,6 +87,9 @@ export function createErrorTracker(): ErrorTracker {
       }
 
       errors.push(tracked);
+      for (const sink of sinks) {
+        void Promise.resolve(sink(tracked)).catch(() => undefined);
+      }
       return tracked;
     },
 
@@ -90,3 +102,5 @@ export function createErrorTracker(): ErrorTracker {
     },
   };
 }
+
+export { redactString as redactSecretsForTest };

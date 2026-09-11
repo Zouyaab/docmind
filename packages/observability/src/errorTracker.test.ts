@@ -41,4 +41,32 @@ describe("createErrorTracker", () => {
     tracker.clear();
     expect(tracker.list()).toHaveLength(0);
   });
+
+  it("notifies registered sinks with redacted payloads", async () => {
+    const seen: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const tracker = createErrorTracker({
+      sinks: [
+        (error) => {
+          const entry: { message: string; context?: Record<string, unknown> } = {
+            message: error.message,
+          };
+          if (error.context) {
+            entry.context = error.context;
+          }
+          seen.push(entry);
+        },
+      ],
+    });
+    tracker.addSink((error) => {
+      seen.push({ message: `second:${error.message}` });
+    });
+
+    tracker.track(new Error("Bearer leaked-token"), { password: "hunter2", ok: true });
+
+    expect(seen).toHaveLength(2);
+    expect(seen[0]?.message).toContain("[REDACTED]");
+    expect(seen[0]?.message).not.toContain("leaked-token");
+    expect(seen[0]?.context).toEqual({ password: "[REDACTED]", ok: true });
+    expect(seen[1]?.message).toMatch(/^second:/);
+  });
 });
