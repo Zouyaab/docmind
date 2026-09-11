@@ -20,6 +20,7 @@
     "@docmind/extraction": "workspace:*",
     "@docmind/ingestion": "workspace:*",
     "@docmind/observability": "workspace:*",
+    "@docmind/persistence": "workspace:*",
     "@docmind/rag": "workspace:*",
     "@docmind/retrieval": "workspace:*",
     "@fastify/cors": "^10.0.2",

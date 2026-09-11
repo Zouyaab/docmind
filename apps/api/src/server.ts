@@ -9,12 +9,20 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import { loadConfig, type DocMindConfig } from "@docmind/config";
 import { DOCMIND_NAME, DOCMIND_VERSION, DocMindError } from "@docmind/core";
-import { LocalFsBlobStore, MemoryDocumentStore, ingestDocument } from "@docmind/ingestion";
+import { LocalFsBlobStore, ingestDocument } from "@docmind/ingestion";
 import { createErrorTracker, MetricsRegistry, type ErrorTracker } from "@docmind/observability";
+import {
+  checkPostgresHealth,
+  createStores,
+  type DocMindStores,
+  type PersistenceMode,
+  type PgPool,
+} from "@docmind/persistence";
 import { answerQuestion } from "@docmind/rag";
 import Fastify, { type FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createAppContext, decideForDocument, processDocument } from "./pipeline.js";
+import { createProvidersFromConfig } from "./providers.js";
 
 const documentIdSchema = z
   .string()
@@ -26,6 +34,7 @@ const searchSchema = z
   .object({
     query: z.string().min(1).max(4_000),
     topK: z.number().int().positive().max(50).optional(),
+    documentId: documentIdSchema.optional(),
   })
   .strict();
 
@@ -33,6 +42,8 @@ const askSchema = z
   .object({
     query: z.string().min(1).max(4_000),
     topK: z.number().int().positive().max(50).optional(),
+    documentId: documentIdSchema.optional(),
+    minScore: z.number().min(0).max(1).optional(),
   })
   .strict();
 
@@ -59,25 +70,41 @@ export interface BuildServerOptions {
   config?: DocMindConfig;
   errorTracker?: ErrorTracker;
   metrics?: MetricsRegistry;
+  stores?: DocMindStores;
 }
 
 export async function buildServer(options: BuildServerOptions = {}): Promise<{
   app: FastifyInstance;
   config: DocMindConfig;
-  store: MemoryDocumentStore;
+  stores: DocMindStores;
   blobs: LocalFsBlobStore;
   ctx: ReturnType<typeof createAppContext>;
   metrics: MetricsRegistry;
   errorTracker: ErrorTracker;
+  persistenceMode: PersistenceMode;
+  pool?: PgPool | undefined;
 }> {
   const config = options.config ?? loadConfig();
   const metrics = options.metrics ?? new MetricsRegistry();
   const errorTracker = options.errorTracker ?? createErrorTracker();
-  const store = new MemoryDocumentStore();
+
+  const created =
+    options.stores != null
+      ? { mode: "memory" as const, stores: options.stores }
+      : await createStores({
+          ...(config.DATABASE_URL ? { databaseUrl: config.DATABASE_URL } : {}),
+          embeddingDimensions: config.EMBEDDING_DIMENSIONS,
+        });
+
+  const stores = created.stores;
+  const persistenceMode = created.mode;
+  const pool = "pool" in created ? created.pool : undefined;
+
   const dataDir = join(process.cwd(), ".data", "blobs");
   await mkdir(dataDir, { recursive: true });
   const blobs = new LocalFsBlobStore(dataDir);
-  const ctx = createAppContext(store, blobs);
+  const providers = createProvidersFromConfig(config);
+  const ctx = createAppContext(stores, blobs, providers, config);
 
   const app = Fastify({
     genReqId: () => randomUUID(),
@@ -217,7 +244,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
 
   app.get("/api/v1/health", async () => {
     metrics.increment("health_checks");
-    return { status: "ok" };
+    let database: "disabled" | "ok" | "error" = "disabled";
+    if (pool) {
+      database = (await checkPostgresHealth(pool)) ? "ok" : "error";
+    }
+    return {
+      status: database === "error" ? "degraded" : "ok",
+      persistence: persistenceMode,
+      database,
+    };
   });
 
   app.get("/api/v1/version", async () => ({
@@ -252,7 +287,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
       filename,
       bytes,
       maxBytes: config.MAX_UPLOAD_BYTES,
-      store,
+      store: stores.documents,
       blobs,
     });
     metrics.increment("documents_uploaded");
@@ -260,11 +295,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
     return result.document;
   });
 
-  app.get("/api/v1/documents", async () => store.list());
+  app.get("/api/v1/documents", async () => stores.documents.list());
 
   app.get<{ Params: { id: string } }>("/api/v1/documents/:id", async (request) => {
     const id = documentIdSchema.parse(request.params.id);
-    const doc = await store.get(id);
+    const doc = await stores.documents.get(id);
     if (!doc) {
       throw new DocMindError("NOT_FOUND", "Document not found", 404);
     }
@@ -283,9 +318,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
         chunks: processed.chunks.length,
         classification: processed.classification,
         vectorCount: processed.vectorCount,
+        extractionStatus: processed.extractionStatus,
       };
     } catch (error) {
-      await store.updateStatus(id, "failed");
+      await stores.documents.updateStatus(id, "failed");
       throw error;
     }
   });
@@ -293,7 +329,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
   app.post("/api/v1/search", async (request) => {
     const body = searchSchema.parse(request.body);
     const [queryVector] = await ctx.providers.embedding.embed([body.query]);
-    const results = await ctx.vectors.search(queryVector ?? [], body.topK ?? 5);
+    const results = await ctx.stores.vectors.search(queryVector ?? [], {
+      topK: body.topK ?? 5,
+      ...(body.documentId ? { documentId: body.documentId } : {}),
+    });
     metrics.increment("searches");
     return {
       results: results.map((r) => ({
@@ -301,6 +340,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
         chunkId: r.record.chunkId,
         text: r.record.text,
         score: r.score,
+        metadata: r.record.metadata ?? {},
       })),
     };
   });
@@ -309,10 +349,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
     const body = askSchema.parse(request.body);
     const result = await answerQuestion({
       query: body.query,
-      store: ctx.vectors,
+      store: ctx.stores.vectors,
       llm: ctx.providers.llm,
       embedding: ctx.providers.embedding,
       topK: body.topK ?? 5,
+      minScore: body.minScore ?? config.RAG_MIN_SCORE,
+      ...(body.documentId ? { documentId: body.documentId } : {}),
     });
     metrics.increment("ask_requests");
     return result;
@@ -320,14 +362,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
 
   app.post("/api/v1/decide", async (request) => {
     const body = decideSchema.parse(request.body);
-    const doc = await store.get(body.documentId);
+    const doc = await stores.documents.get(body.documentId);
     if (!doc) {
       throw new DocMindError("NOT_FOUND", "Document not found", 404);
     }
-    if (!ctx.classificationCache.has(body.documentId)) {
-      await processDocument(ctx, body.documentId);
-    }
-    const decision = decideForDocument(ctx, body.documentId);
+    const decision = await decideForDocument(ctx, body.documentId);
     metrics.increment("decisions");
     return decision;
   });
@@ -335,9 +374,26 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
   app.get("/api/v1/metrics", async () => ({
     counters: metrics.snapshotCounters(),
     latencies: metrics.snapshotLatencies(),
+    persistence: persistenceMode,
   }));
 
-  return { app, config, store, blobs, ctx, metrics, errorTracker };
+  app.addHook("onClose", async () => {
+    if (pool) {
+      await pool.end();
+    }
+  });
+
+  return {
+    app,
+    config,
+    stores,
+    blobs,
+    ctx,
+    metrics,
+    errorTracker,
+    persistenceMode,
+    ...(pool ? { pool } : {}),
+  };
 }
 
 export async function startServer() {

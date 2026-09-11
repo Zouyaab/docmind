@@ -3,4 +3,4 @@ export {
   type AnswerQuestionInput,
   type AnswerQuestionResult,
 } from "./answerQuestion.js";
-export { buildRagPrompt, containsInjectionAttempt } from "./prompt.js";
+export { buildRagPrompt, containsInjectionAttempt, sanitizeUntrustedContext } from "./prompt.js";

@@ -21,7 +21,7 @@ describe("DocMind API", () => {
       headers: { "x-request-id": "test-req-1" },
     });
     expect(health.statusCode).toBe(200);
-    expect(health.json()).toEqual({ status: "ok" });
+    expect(health.json()).toMatchObject({ status: "ok", persistence: "memory" });
     expect(health.headers["x-request-id"] ?? health.headers["X-Request-Id"]).toBeTruthy();
 
     const version = await app.inject({ method: "GET", url: "/api/v1/version" });

@@ -29,12 +29,9 @@ describe("extractTextFromBytes", () => {
     expect(result.text).toBe("");
   });
 
-  it("attempts heuristic PDF extraction", () => {
+  it("extracts PDF literal Tj strings", () => {
     const pdfLike = `%PDF-1.4
-1 0 obj
-stream
-Hello PDF
-endstream
+BT /F1 12 Tf (Hello PDF) Tj ET
 `;
     const bytes = new TextEncoder().encode(pdfLike);
     const result = extractTextFromBytes(bytes, "application/pdf");
@@ -42,10 +39,29 @@ endstream
     expect(result.text).toContain("Hello PDF");
   });
 
-  it("returns unsupported_binary when PDF heuristic finds nothing", () => {
+  it("attempts heuristic PDF stream extraction", () => {
+    const pdfLike = `%PDF-1.4
+1 0 obj
+stream
+Hello stream PDF
+endstream
+`;
+    const bytes = new TextEncoder().encode(pdfLike);
+    const result = extractTextFromBytes(bytes, "application/pdf");
+    expect(result.status).toBe("ok");
+    expect(result.text).toContain("Hello stream PDF");
+  });
+
+  it("reports scanned_or_image_only when PDF has no extractable text", () => {
     const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0xff, 0x00, 0x01]);
     const result = extractTextFromBytes(bytes, "application/pdf");
-    expect(result.status).toBe("unsupported_binary");
-    expect(result.note).toContain("MVP heuristic");
+    expect(result.status).toBe("scanned_or_image_only");
+    expect(result.note?.toLowerCase()).toMatch(/scanned|ocr|no extractable/);
+  });
+
+  it("rejects non-PDF bytes labeled as PDF", () => {
+    const bytes = new TextEncoder().encode("not a pdf");
+    const result = extractTextFromBytes(bytes, "application/pdf");
+    expect(result.status).toBe("failed");
   });
 });

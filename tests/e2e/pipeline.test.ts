@@ -65,6 +65,7 @@ describe("offline e2e pipeline", () => {
         llm,
         embedding,
         topK: 3,
+        minScore: 0,
       });
       expect(rag.answer.length).toBeGreaterThan(0);
       expect(rag.citations.length).toBeGreaterThan(0);

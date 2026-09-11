@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 export default defineConfig({
   test: {
     include: ["**/*.test.ts"],
-    exclude: ["**/node_modules/**", "**/dist/**", "**/*.ollama.test.ts"],
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/*.ollama.test.ts",
+      "**/*.integration.test.ts",
+    ],
     environment: "node",
     testTimeout: 30_000,
     coverage: {
@@ -43,6 +48,9 @@ export default defineConfig({
       ),
       "@docmind/retrieval": fileURLToPath(
         new URL("./packages/retrieval/src/index.ts", import.meta.url),
+      ),
+      "@docmind/persistence": fileURLToPath(
+        new URL("./packages/persistence/src/index.ts", import.meta.url),
       ),
       "@docmind/rag": fileURLToPath(new URL("./packages/rag/src/index.ts", import.meta.url)),
       "@docmind/decision-engine": fileURLToPath(

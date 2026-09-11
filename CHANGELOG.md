@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.0] - 2026-09-11
+
+### Added
+
+- `@docmind/persistence` with memory + PostgreSQL/pgvector stores
+- Schema migrations for documents, chunks, embeddings, classifications, fields, decisions
+- Configurable AI/embedding providers (`mock` | `ollama`) with timeouts/retries
+- Improved PDF extraction (Tj/hex/stream + scanned/image detection)
+- RAG insufficient-evidence handling and retrieved-chunk injection sanitization
+- Vector search filters (`documentId`, `minScore`)
+- Health endpoint reports persistence mode and DB status
+
+### Changed
+
+- Docker Compose defaults to API + pgvector Postgres
+- Decision results persisted when using stores
+
 ## [0.1.1] - 2026-09-11
 
 ### Added

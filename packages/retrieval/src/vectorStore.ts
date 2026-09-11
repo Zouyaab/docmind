@@ -12,9 +12,15 @@ export interface SearchResult {
   score: number;
 }
 
+export interface SearchOptions {
+  topK?: number;
+  documentId?: string;
+  minScore?: number;
+}
+
 export interface VectorStore {
   upsert(records: VectorRecord[]): Promise<void>;
-  search(queryVector: number[], topK?: number): Promise<SearchResult[]>;
+  search(queryVector: number[], topKOrOptions?: number | SearchOptions): Promise<SearchResult[]>;
   deleteByDocument(documentId: string): Promise<void>;
   size(): number;
 }
@@ -46,13 +52,23 @@ export class InMemoryVectorStore implements VectorStore {
     }
   }
 
-  async search(queryVector: number[], topK = 5): Promise<SearchResult[]> {
+  async search(
+    queryVector: number[],
+    topKOrOptions: number | SearchOptions = 5,
+  ): Promise<SearchResult[]> {
+    const options: SearchOptions =
+      typeof topKOrOptions === "number" ? { topK: topKOrOptions } : topKOrOptions;
+    const topK = options.topK ?? 5;
     const scored: SearchResult[] = [];
     for (const record of this.records.values()) {
-      scored.push({
-        record,
-        score: cosineSimilarity(queryVector, record.vector),
-      });
+      if (options.documentId && record.documentId !== options.documentId) {
+        continue;
+      }
+      const score = cosineSimilarity(queryVector, record.vector);
+      if (options.minScore !== undefined && score < options.minScore) {
+        continue;
+      }
+      scored.push({ record, score });
     }
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, topK);

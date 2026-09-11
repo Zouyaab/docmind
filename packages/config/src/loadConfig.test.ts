@@ -5,14 +5,17 @@ import { loadConfig } from "./loadConfig.js";
 describe("loadConfig", () => {
   it("applies defaults when env is empty", () => {
     const config = loadConfig({});
-    expect(config).toEqual({
-      API_PORT: 3000,
-      API_HOST: "127.0.0.1",
-      MAX_UPLOAD_BYTES: 10_485_760,
-      OLLAMA_BASE_URL: "http://127.0.0.1:11434",
-      OLLAMA_MODEL: "llama3.2",
-      LOG_LEVEL: "info",
-    });
+    expect(config.API_PORT).toBe(3000);
+    expect(config.API_HOST).toBe("127.0.0.1");
+    expect(config.MAX_UPLOAD_BYTES).toBe(10_485_760);
+    expect(config.OLLAMA_BASE_URL).toBe("http://127.0.0.1:11434");
+    expect(config.OLLAMA_MODEL).toBe("llama3.2");
+    expect(config.OLLAMA_EMBED_MODEL).toBe("nomic-embed-text");
+    expect(config.AI_PROVIDER).toBe("mock");
+    expect(config.EMBEDDING_PROVIDER).toBe("mock");
+    expect(config.EMBEDDING_DIMENSIONS).toBe(32);
+    expect(config.LOG_LEVEL).toBe("info");
+    expect(config.RAG_MIN_SCORE).toBe(0);
   });
 
   it("parses overrides from env", () => {
@@ -25,6 +28,8 @@ describe("loadConfig", () => {
       DATABASE_URL: "postgres://user:pass@localhost:5432/docmind",
       LOG_LEVEL: "debug",
       API_TOKEN: "secret-token",
+      AI_PROVIDER: "ollama",
+      EMBEDDING_DIMENSIONS: "32",
     });
 
     expect(config.API_PORT).toBe(8080);
@@ -34,6 +39,7 @@ describe("loadConfig", () => {
     expect(config.DATABASE_URL).toBe("postgres://user:pass@localhost:5432/docmind");
     expect(config.LOG_LEVEL).toBe("debug");
     expect(config.API_TOKEN).toBe("secret-token");
+    expect(config.AI_PROVIDER).toBe("ollama");
   });
 
   it("treats empty strings as unset optional values", () => {

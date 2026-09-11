@@ -1,11 +1,8 @@
 # DocMind application stack (not infrastructure-as-code).
-# This repository is a TypeScript application/backend monorepo.
-# Terraform / Kubernetes / Helm / Pulumi / Ansible are intentionally out of scope.
 #
-# Required: api
-# Optional profiles:
-#   --profile postgres  → Postgres 16 (reserved for future pgvector; unused by MVP API)
-#   --profile ollama    → Local Ollama for optional live inference
+# Default: api + Postgres/pgvector (persistent mode when DATABASE_URL is set).
+# Optional:
+#   --profile ollama → local Ollama for live inference (set AI_PROVIDER=ollama)
 
 services:
   api:
@@ -21,12 +18,22 @@ services:
       API_PORT: "3000"
       LOG_LEVEL: "info"
       MAX_UPLOAD_BYTES: "10485760"
-      # Leave empty locally; set via compose override or secrets in production.
       API_TOKEN: ""
+      AI_PROVIDER: "mock"
+      EMBEDDING_PROVIDER: "mock"
+      EMBEDDING_DIMENSIONS: "32"
+      DATABASE_URL: "postgres://docmind:docmind@postgres:5432/docmind"
       OLLAMA_BASE_URL: "http://ollama:11434"
       OLLAMA_MODEL: "llama3.2"
+      OLLAMA_EMBED_MODEL: "nomic-embed-text"
+      OLLAMA_TIMEOUT_MS: "30000"
+      OLLAMA_RETRIES: "1"
+      RAG_MIN_SCORE: "0.12"
     volumes:
       - docmind-data:/app/.data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -38,13 +45,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
-      start_period: 20s
+      start_period: 25s
     networks:
       - docmind
 
   postgres:
-    image: postgres:16-alpine
-    profiles: ["postgres"]
+    image: pgvector/pgvector:pg16
     container_name: docmind-postgres
     restart: unless-stopped
     environment:
@@ -55,12 +61,11 @@ services:
       - pg-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U docmind -d docmind"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - docmind
-    # Port published only when the postgres profile is enabled.
     ports:
       - "5432:5432"
 
@@ -73,7 +78,6 @@ services:
       - ollama-data:/root/.ollama
     networks:
       - docmind
-    # Not published by default; API reaches it on the internal network.
 
 volumes:
   docmind-data:

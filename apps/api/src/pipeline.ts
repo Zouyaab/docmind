@@ -1,51 +1,47 @@
-import { createMockProviders } from "@docmind/ai";
 import { classifyDocument } from "@docmind/classification";
+import type { DocMindConfig } from "@docmind/config";
 import { DocMindError, type Chunk, type DocumentRecord } from "@docmind/core";
-import { evaluateDecisions } from "@docmind/decision-engine";
+import { evaluateDecisions, type DecisionResult } from "@docmind/decision-engine";
 import { embedChunks } from "@docmind/embeddings";
 import { chunkText, extractTextFromBytes } from "@docmind/extraction";
-import type { BlobStore, DocumentStore } from "@docmind/ingestion";
-import { InMemoryVectorStore } from "@docmind/retrieval";
+import type { BlobStore } from "@docmind/ingestion";
+import type { DocMindStores } from "@docmind/persistence";
+import type { EmbeddingProvider, LLMProvider } from "@docmind/ai";
 
 export interface ProcessedDocument {
   document: DocumentRecord;
   chunks: Chunk[];
   classification: Awaited<ReturnType<typeof classifyDocument>>;
   vectorCount: number;
+  extractionStatus: string;
 }
 
 export interface AppContext {
-  store: DocumentStore;
+  stores: DocMindStores;
   blobs: BlobStore;
-  vectors: InMemoryVectorStore;
-  chunkCache: Map<string, Chunk[]>;
-  classificationCache: Map<string, ProcessedDocument["classification"]>;
-  fieldsCache: Map<string, Record<string, unknown>>;
-  providers: ReturnType<typeof createMockProviders>;
+  providers: { llm: LLMProvider; embedding: EmbeddingProvider };
+  config: DocMindConfig;
 }
 
-export function createAppContext(store: DocumentStore, blobs: BlobStore): AppContext {
-  return {
-    store,
-    blobs,
-    vectors: new InMemoryVectorStore(),
-    chunkCache: new Map(),
-    classificationCache: new Map(),
-    fieldsCache: new Map(),
-    providers: createMockProviders(),
-  };
+export function createAppContext(
+  stores: DocMindStores,
+  blobs: BlobStore,
+  providers: { llm: LLMProvider; embedding: EmbeddingProvider },
+  config: DocMindConfig,
+): AppContext {
+  return { stores, blobs, providers, config };
 }
 
 export async function processDocument(
   ctx: AppContext,
   documentId: string,
 ): Promise<ProcessedDocument> {
-  const document = await ctx.store.get(documentId);
+  const document = await ctx.stores.documents.get(documentId);
   if (!document) {
     throw new DocMindError("NOT_FOUND", "Document not found", 404);
   }
 
-  await ctx.store.updateStatus(documentId, "processing");
+  await ctx.stores.documents.updateStatus(documentId, "processing");
   const blobKey = `documents/${documentId}/raw`;
   const bytes = await ctx.blobs.get(blobKey);
   if (!bytes) {
@@ -53,36 +49,79 @@ export async function processDocument(
   }
 
   const extracted = extractTextFromBytes(bytes, document.mimeType);
-  const chunks = chunkText(documentId, extracted.text);
-  ctx.chunkCache.set(documentId, chunks);
+  if (extracted.status === "failed" || extracted.status === "unsupported_binary") {
+    await ctx.stores.documents.updateStatus(documentId, "failed");
+    throw new DocMindError(
+      "EXTRACTION_FAILED",
+      extracted.note ?? "Document text extraction failed",
+      422,
+    );
+  }
+  if (extracted.status === "empty" || extracted.status === "scanned_or_image_only") {
+    await ctx.stores.documents.updateStatus(documentId, "failed");
+    throw new DocMindError(
+      "EXTRACTION_EMPTY",
+      extracted.note ?? "No extractable text in document",
+      422,
+    );
+  }
+
+  const chunks = chunkText(documentId, extracted.text).map((chunk) => ({
+    ...chunk,
+    metadata: {
+      ...(chunk.metadata ?? {}),
+      ...(extracted.pageCount ? { documentPageCount: extracted.pageCount } : {}),
+    },
+  }));
+  await ctx.stores.chunks.replaceForDocument(documentId, chunks);
 
   const classification = await classifyDocument(chunks.length > 0 ? chunks : extracted.text, {
     llm: ctx.providers.llm,
     documentId,
   });
-  ctx.classificationCache.set(documentId, classification);
+  await ctx.stores.classifications.save({
+    documentId,
+    documentType: classification.documentType,
+    confidence: classification.confidence,
+    band: classification.band,
+    evidence: classification.evidence,
+    updatedAt: new Date().toISOString(),
+  });
 
   const fields = await extractFields(ctx, extracted.text);
-  ctx.fieldsCache.set(documentId, fields);
+  await ctx.stores.fields.save(documentId, fields);
 
-  await ctx.vectors.deleteByDocument(documentId);
+  await ctx.stores.vectors.deleteByDocument(documentId);
   const embedded = await embedChunks(chunks, ctx.providers.embedding);
-  await ctx.vectors.upsert(
+  await ctx.stores.vectors.upsert(
     embedded.map((item) => ({
       id: `vec_${item.chunkId}`,
       documentId: item.documentId,
       chunkId: item.chunkId,
       text: item.text,
       vector: item.vector,
+      metadata: {
+        pageNumber: chunks.find((c) => c.id === item.chunkId)?.pageNumber,
+      },
     })),
   );
 
-  const updated = await ctx.store.updateStatus(documentId, "completed");
+  if (extracted.pageCount != null) {
+    const withPages = {
+      ...document,
+      pageCount: extracted.pageCount,
+      updatedAt: new Date().toISOString(),
+    };
+    await ctx.stores.documents.save(withPages);
+  }
+
+  const updated = await ctx.stores.documents.updateStatus(documentId, "completed");
   return {
     document: updated ?? document,
     chunks,
     classification,
     vectorCount: embedded.length,
+    extractionStatus: extracted.status,
   };
 }
 
@@ -102,14 +141,22 @@ ${text.slice(0, 4000)}
   }
 }
 
-export function decideForDocument(
+export async function decideForDocument(
   ctx: AppContext,
   documentId: string,
-): ReturnType<typeof evaluateDecisions> {
-  const classification = ctx.classificationCache.get(documentId);
-  const fields = ctx.fieldsCache.get(documentId) ?? {};
-  return evaluateDecisions({
+): Promise<DecisionResult> {
+  let classification = await ctx.stores.classifications.get(documentId);
+  let fields = (await ctx.stores.fields.get(documentId)) ?? {};
+  if (!classification) {
+    await processDocument(ctx, documentId);
+    classification = await ctx.stores.classifications.get(documentId);
+    fields = (await ctx.stores.fields.get(documentId)) ?? {};
+  }
+
+  const decision = evaluateDecisions({
     documentType: classification?.documentType ?? "unknown",
     fields: fields as Record<string, string | number | boolean | null>,
   });
+  await ctx.stores.decisions.save(documentId, decision);
+  return decision;
 }

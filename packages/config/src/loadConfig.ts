@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DocMindError } from "@docmind/core";
 
 const logLevelSchema = z.enum(["debug", "info", "warn", "error"]);
+const aiProviderSchema = z.enum(["mock", "ollama"]).default("mock");
 
 const configSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(3000),
@@ -9,9 +10,16 @@ const configSchema = z.object({
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10_485_760),
   OLLAMA_BASE_URL: z.string().url().default("http://127.0.0.1:11434"),
   OLLAMA_MODEL: z.string().min(1).default("llama3.2"),
+  OLLAMA_EMBED_MODEL: z.string().min(1).default("nomic-embed-text"),
+  OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  OLLAMA_RETRIES: z.coerce.number().int().min(0).max(5).default(1),
+  AI_PROVIDER: aiProviderSchema,
+  EMBEDDING_PROVIDER: aiProviderSchema,
+  EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(32),
   DATABASE_URL: z.string().url().optional(),
   LOG_LEVEL: logLevelSchema.default("info"),
   API_TOKEN: z.string().min(1).optional(),
+  RAG_MIN_SCORE: z.coerce.number().min(0).max(1).default(0),
 });
 
 export type DocMindConfig = z.infer<typeof configSchema>;
