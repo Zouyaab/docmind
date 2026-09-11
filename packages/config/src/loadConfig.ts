@@ -20,6 +20,8 @@ const configSchema = z.object({
   LOG_LEVEL: logLevelSchema.default("info"),
   API_TOKEN: z.string().min(1).optional(),
   RAG_MIN_SCORE: z.coerce.number().min(0).max(1).default(0),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+  REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
 });
 
 export type DocMindConfig = z.infer<typeof configSchema>;

@@ -25,7 +25,15 @@ describe("DocMind API", () => {
     expect(health.headers["x-request-id"] ?? health.headers["X-Request-Id"]).toBeTruthy();
 
     const version = await app.inject({ method: "GET", url: "/api/v1/version" });
-    expect(version.json()).toMatchObject({ name: "DocMind", version: "0.1.0" });
+    expect(version.json()).toMatchObject({ name: "DocMind", version: "0.2.0" });
+
+    const ready = await app.inject({ method: "GET", url: "/api/v1/ready" });
+    expect(ready.statusCode).toBe(200);
+    expect(ready.json()).toMatchObject({
+      ready: true,
+      persistence: "memory",
+      database: "disabled",
+    });
   });
 
   it("uploads, processes, searches, asks, and decides", async () => {
@@ -44,7 +52,17 @@ Contract value: $150,000`;
       payload: text,
     });
     expect(upload.statusCode).toBe(200);
-    const doc = upload.json() as { id: string };
+    const uploaded = upload.json() as { document: { id: string }; duplicate: boolean };
+    expect(uploaded.duplicate).toBe(false);
+    const doc = uploaded.document;
+
+    const dup = await app.inject({
+      method: "POST",
+      url: "/api/v1/documents",
+      headers: { "content-type": "text/plain" },
+      payload: text,
+    });
+    expect(dup.json().duplicate).toBe(true);
 
     const process = await app.inject({
       method: "POST",
@@ -172,5 +190,83 @@ Contract value: $150,000`;
       counters: Array<{ name: string; value: number }>;
     };
     expect(body.counters.some((c) => c.name === "health_checks" && c.value >= 1)).toBe(true);
+  });
+
+  it("documents OpenAPI paths for core routes", async () => {
+    ({ app } = await buildServer());
+    const docs = await app.inject({ method: "GET", url: "/docs/json" });
+    expect(docs.statusCode).toBe(200);
+    const spec = docs.json() as { paths: Record<string, unknown> };
+    for (const path of [
+      "/api/v1/health",
+      "/api/v1/ready",
+      "/api/v1/version",
+      "/api/v1/documents",
+      "/api/v1/search",
+      "/api/v1/ask",
+      "/api/v1/decide",
+      "/api/v1/metrics",
+    ]) {
+      expect(spec.paths[path], `missing OpenAPI path ${path}`).toBeTruthy();
+    }
+  });
+
+  it("returns 404 for missing documents and process targets", async () => {
+    ({ app } = await buildServer());
+    const missing = await app.inject({ method: "GET", url: "/api/v1/documents/does_not_exist" });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error.code).toBe("NOT_FOUND");
+
+    const processMissing = await app.inject({
+      method: "POST",
+      url: "/api/v1/documents/does_not_exist/process",
+    });
+    expect(processMissing.statusCode).toBe(404);
+  });
+
+  it("rejects oversized uploads", async () => {
+    const config = loadConfig({
+      MAX_UPLOAD_BYTES: "32",
+      LOG_LEVEL: "error",
+    });
+    ({ app } = await buildServer({ config }));
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/documents",
+      headers: { "content-type": "text/plain" },
+      payload: "x".repeat(64),
+    });
+    expect(response.statusCode).toBe(413);
+    expect(response.json().error.code).toBe("UPLOAD_TOO_LARGE");
+  });
+
+  it("enforces rate limits", async () => {
+    const config = loadConfig({
+      RATE_LIMIT_MAX: "2",
+      LOG_LEVEL: "error",
+    });
+    ({ app } = await buildServer({ config }));
+    await app.inject({ method: "GET", url: "/api/v1/version" });
+    await app.inject({ method: "GET", url: "/api/v1/version" });
+    const limited = await app.inject({ method: "GET", url: "/api/v1/version" });
+    expect(limited.statusCode).toBe(429);
+  });
+
+  it("surfaces empty extraction failures without leaking stacks", async () => {
+    ({ app } = await buildServer());
+    const upload = await app.inject({
+      method: "POST",
+      url: "/api/v1/documents",
+      headers: { "content-type": "text/plain" },
+      payload: "   \n\t  ",
+    });
+    const docId = (upload.json() as { document: { id: string } }).document.id;
+    const process = await app.inject({
+      method: "POST",
+      url: `/api/v1/documents/${docId}/process`,
+    });
+    expect(process.statusCode).toBe(422);
+    expect(process.json().error.code).toBe("EXTRACTION_EMPTY");
+    expect(JSON.stringify(process.json())).not.toMatch(/at Object\.|node_modules/);
   });
 });

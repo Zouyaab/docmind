@@ -16,6 +16,7 @@ describe("loadConfig", () => {
     expect(config.EMBEDDING_DIMENSIONS).toBe(32);
     expect(config.LOG_LEVEL).toBe("info");
     expect(config.RAG_MIN_SCORE).toBe(0);
+    expect(config.RATE_LIMIT_MAX).toBe(120);
   });
 
   it("parses overrides from env", () => {
