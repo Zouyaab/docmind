@@ -37,17 +37,20 @@ The LLM does **not** decide ALLOW / REVIEW / REJECT. Rules do.
 - `LLMProvider` / `EmbeddingProvider` interfaces
 - Default runtime/tests: **Mock** providers (deterministic, offline)
 - Optional: Ollama HTTP providers for local models
-- Vector store interface with in-memory implementation today; Postgres/pgvector reserved in Compose profile
+- Vector store interface with:
+  - in-memory implementation (default / CI)
+  - PostgreSQL + pgvector implementation when `DATABASE_URL` is set
 
 ## Provenance / evidence
 
-Chunks retain document id, offsets, and optional page numbers. RAG returns citations with source chunk text. Decision results reference which rules fired.
+Chunks retain document id, offsets, and optional page numbers. RAG returns citations with source chunk text, scores, and grounding flags. Decision results reference which rules fired.
 
 ## Observability
 
 - Structured Fastify/Pino JSON logs with `requestId`
 - Metrics registry counters/latencies
-- Error tracker with secret redaction; clients never receive stack traces
+- Error tracker with secret redaction and optional `ErrorSink` hooks for external systems
+- Clients never receive stack traces
 
 ## Security boundaries
 
@@ -55,6 +58,7 @@ Chunks retain document id, offsets, and optional page numbers. RAG returns citat
 2. Blob keys cannot escape the storage root
 3. Document text wrapped as untrusted data in prompts
 4. Optional Bearer auth, Helmet headers, rate limits
+5. Lexical answer grounding refuses unsupported RAG answers
 
 ## Quality gates
 

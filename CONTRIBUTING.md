@@ -27,7 +27,9 @@ pnpm audit:prod
 
 ## Guidelines
 
-- Keep tests offline by default (Mock providers).
+- Keep tests offline by default (Mock providers; no `DATABASE_URL` / Ollama required).
+- Postgres integration tests live in `*.integration.test.ts` and are excluded unless you run them explicitly with `DATABASE_URL`.
+- Ollama suites use `*.ollama.test.ts` and are excluded by default.
 - Do not add Terraform/K8s unless the product genuinely needs it.
 - Do not log document contents, tokens, or secrets.
 - Document behavior changes in `CHANGELOG.md`.

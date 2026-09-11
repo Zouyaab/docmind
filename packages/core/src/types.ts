@@ -45,4 +45,4 @@ export interface ExtractionFieldResult {
 }
 
 export const DOCMIND_NAME = "DocMind";
-export const DOCMIND_VERSION = "0.1.0";
+export const DOCMIND_VERSION = "0.2.0";

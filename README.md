@@ -23,14 +23,14 @@ Infrastructure-as-code such as Terraform, Kubernetes, Helm, Pulumi, and Ansible 
 
 ## Features
 
-- Secure document upload (MIME sniffing, size limits, path-safe blob storage)
+- Secure document upload (MIME sniffing, size limits, path-safe blob storage, duplicate detection)
 - Text extraction + chunking with offsets/provenance
 - Heuristic + LLM-assisted classification (Mock by default; Ollama optional)
-- In-memory vector search (Postgres/pgvector reserved for later)
-- Citation-aware Q&A with prompt-injection defenses
+- In-memory vector search **or** PostgreSQL/pgvector when `DATABASE_URL` is set
+- Citation-aware Q&A with prompt-injection defenses and answer grounding
 - Deterministic risk/decision rules (separate from LLM interpretation)
-- Fastify OpenAPI (`/docs`), metrics endpoint, structured JSON logs
-- Offline CI (no internet / Ollama required for tests)
+- Fastify OpenAPI (`/docs`), readiness (`/api/v1/ready`), metrics, structured JSON logs
+- Offline CI (no internet / Ollama / Postgres required for the default test suite)
 
 ## Architecture
 
@@ -40,14 +40,14 @@ Ingest → Extract/Chunk → Classify → Embed → Search → RAG → Decision 
 
 LLM providers **interpret**. The decision engine applies **deterministic rules**. Evidence/provenance travels with results.
 
-See [docs/architecture.md](docs/architecture.md).
+See [docs/architecture.md](docs/architecture.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Repository structure
 
 | Path         | Role                             |
 | ------------ | -------------------------------- |
 | `apps/api`   | Fastify API                      |
-| `apps/web`   | Local dashboard                  |
+| `apps/web`   | Local Vite dashboard             |
 | `packages/*` | Core libraries                   |
 | `docker/`    | Dockerfile + Compose             |
 | `tests/`     | Offline e2e + fixtures           |
@@ -57,9 +57,9 @@ See [docs/architecture.md](docs/architecture.md).
 
 - Node.js ≥ 20
 - pnpm 11.22.0 (via Corepack)
-- Docker (optional, for Compose)
+- Docker (optional, for Compose + Postgres)
 
-## Installation
+## Quick start (offline)
 
 ```bash
 git clone https://github.com/Zouyaab/docmind.git
@@ -67,22 +67,28 @@ cd docmind
 pnpm install --frozen-lockfile
 pnpm build
 pnpm test
+pnpm dev
+# API: http://127.0.0.1:3000  OpenAPI: /docs  Ready: /api/v1/ready
 ```
+
+No API keys, cloud accounts, or Postgres are required for this path (in-memory persistence + mock AI).
 
 ## Environment variables
 
 Copy [`.env.example`](.env.example) to `.env`. Every variable used by the config loader is documented there.
 
-Notable:
-
-| Variable                | Required      | Purpose                      |
-| ----------------------- | ------------- | ---------------------------- |
-| `API_HOST` / `API_PORT` | No (defaults) | Bind address                 |
-| `MAX_UPLOAD_BYTES`      | No            | Upload cap                   |
-| `LOG_LEVEL`             | No            | Structured log level         |
-| `API_TOKEN`             | No            | Bearer auth when non-empty   |
-| `OLLAMA_*`              | No            | Optional live model endpoint |
-| `DATABASE_URL`          | No            | Reserved for future Postgres |
+| Variable                | Required      | Purpose                                      |
+| ----------------------- | ------------- | -------------------------------------------- |
+| `API_HOST` / `API_PORT` | No (defaults) | Bind address                                 |
+| `MAX_UPLOAD_BYTES`      | No            | Upload cap                                   |
+| `LOG_LEVEL`             | No            | Structured log level                         |
+| `API_TOKEN`             | No            | Bearer auth when non-empty                   |
+| `DATABASE_URL`          | No            | Enable PostgreSQL + pgvector persistence     |
+| `EMBEDDING_DIMENSIONS`  | No            | Must match DB schema (default `32`)          |
+| `AI_PROVIDER`           | No            | `mock` (default) or `ollama`                 |
+| `OLLAMA_*`              | No            | Optional live model endpoint                 |
+| `RAG_MIN_SCORE`         | No            | Minimum retrieval score for RAG              |
+| `RATE_LIMIT_MAX`        | No            | Requests per minute per client (default 120) |
 
 ## Local development
 
@@ -104,73 +110,82 @@ pnpm.cmd build
 pnpm.cmd dev
 ```
 
-## Docker
+## Docker (one command)
 
-From the repository root (recommended):
+From the repository root:
 
 ```bash
 docker compose -f docker/docker-compose.yml up --build
 ```
 
-Equivalent root entrypoint (for tooling that expects a root Compose file):
+Equivalent root entrypoint:
 
 ```bash
 docker compose -f compose.yml up --build
 ```
 
+This starts:
+
+- **API** (waits for Postgres health, exposes readiness on `/api/v1/ready`)
+- **PostgreSQL + pgvector** with a persistent volume
+
 Then:
 
 ```bash
-curl http://127.0.0.1:3000/api/v1/health
+curl.exe http://127.0.0.1:3000/api/v1/ready
+curl.exe http://127.0.0.1:3000/api/v1/health
 ```
 
-Optional profiles:
+Optional Ollama peer (API still defaults to mock providers unless you set `AI_PROVIDER=ollama`):
 
 ```bash
-# Postgres reserved for future pgvector (not used by MVP API yet)
-docker compose -f docker/docker-compose.yml --profile postgres up --build
-
-# Local Ollama network peer (API still defaults to Mock providers in-process)
 docker compose -f docker/docker-compose.yml --profile ollama up --build
 ```
 
-## Testing & coverage
+## Testing
 
 ```bash
+# Default offline suite (no DATABASE_URL / Ollama / API keys)
 pnpm test
-pnpm test:coverage   # enforces Vitest thresholds (lines/statements/functions ≥70%, branches ≥65%)
+pnpm test:coverage
+
+# Opt-in Postgres integration (requires a reachable DATABASE_URL)
+# DATABASE_URL=postgres://docmind:docmind@127.0.0.1:5432/docmind pnpm exec vitest run packages/persistence/src/postgres.integration.test.ts
+
+# Opt-in Ollama suites (*.ollama.test.ts) — excluded by default in vitest.config.ts
 ```
 
-Default tests are **offline** (Mock LLM/embeddings). Ollama-marked suites are opt-in (`*.ollama.test.ts`, excluded by default).
+Default Vitest excludes `**/*.integration.test.ts` and `**/*.ollama.test.ts`.
 
 ## API / CLI / SDK
 
 - API docs: [docs/api.md](docs/api.md) and interactive `/docs`
-- CLI: `pnpm cli -- health`
-- SDK: `@docmind/sdk` `DocMindClient`
+- CLI: `pnpm cli -- health` / `pnpm cli -- ready`
+- SDK: `@docmind/sdk` `DocMindClient` (supports `timeoutMs`, Bearer token)
 
 ## Security & privacy
 
 - Document bytes are untrusted; prompts wrap them as data, not instructions
 - Optional `API_TOKEN` Bearer auth
 - Helmet security headers + rate limiting
-- Secrets redacted in error tracking
+- Secrets redacted in error tracking; optional `ErrorSink` for external sinks
 - See [SECURITY.md](SECURITY.md)
 
 ## Persistence
 
-| Mode | When | Behavior |
-| --- | --- | --- |
-| Memory | `DATABASE_URL` unset (CI/tests default) | In-process stores |
-| PostgreSQL + pgvector | `DATABASE_URL` set | Durable documents, chunks, embeddings, classifications, fields, decisions |
+| Mode                  | When                 | Behavior                                                                  |
+| --------------------- | -------------------- | ------------------------------------------------------------------------- |
+| Memory                | `DATABASE_URL` unset | In-process stores (CI / default local)                                    |
+| PostgreSQL + pgvector | `DATABASE_URL` set   | Durable documents, chunks, embeddings, classifications, fields, decisions |
 
-`createStores()` in `@docmind/persistence` selects the backend. Compose defaults to `pgvector/pgvector:pg16`.
+Compose defaults to `pgvector/pgvector:pg16`.
 
 ## Observability
 
 - Structured Pino logs via Fastify (`requestId`, method, url, statusCode, responseTime)
 - In-process metrics at `GET /api/v1/metrics`
 - Error tracker captures failures with redaction (no client stack leaks)
+- Production deployments can register an `ErrorSink` to forward events to an external system
 
 ## Troubleshooting
 
@@ -180,6 +195,7 @@ Default tests are **offline** (Mock LLM/embeddings). Ollama-marked suites are op
 | Path with spaces fails    | Quote: `Set-Location "C:\Users\...\docmind"`                  |
 | Auth 401s unexpectedly    | Clear `API_TOKEN` or send `Authorization: Bearer …`           |
 | Compose build fails       | Ensure Docker Desktop is running; use Node 20 base image      |
+| Health ok but not ready   | Postgres unreachable — check `DATABASE_URL` / Compose logs    |
 
 ## Contributing
 
@@ -191,10 +207,10 @@ MIT — [LICENSE](LICENSE)
 
 ## Roadmap
 
-- Wire Postgres/pgvector for durable retrieval
 - Production PDF parser (current heuristic is MVP)
-- Optional Ollama provider selection via env (without changing offline CI)
+- Configurable pgvector dimensions beyond the default mock size (32)
 - Stronger multi-tenant auth / quotas
+- Optional external metrics sink (OpenTelemetry)
 
 ## Changelog
 
