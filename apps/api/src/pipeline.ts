@@ -1,6 +1,6 @@
 import { createMockProviders } from "@docmind/ai";
 import { classifyDocument } from "@docmind/classification";
-import type { Chunk, DocumentRecord } from "@docmind/core";
+import { DocMindError, type Chunk, type DocumentRecord } from "@docmind/core";
 import { evaluateDecisions } from "@docmind/decision-engine";
 import { embedChunks } from "@docmind/embeddings";
 import { chunkText, extractTextFromBytes } from "@docmind/extraction";
@@ -42,14 +42,14 @@ export async function processDocument(
 ): Promise<ProcessedDocument> {
   const document = await ctx.store.get(documentId);
   if (!document) {
-    throw new Error("Document not found");
+    throw new DocMindError("NOT_FOUND", "Document not found", 404);
   }
 
   await ctx.store.updateStatus(documentId, "processing");
   const blobKey = `documents/${documentId}/raw`;
   const bytes = await ctx.blobs.get(blobKey);
   if (!bytes) {
-    throw new Error("Blob not found");
+    throw new DocMindError("NOT_FOUND", "Document blob not found", 404);
   }
 
   const extracted = extractTextFromBytes(bytes, document.mimeType);
@@ -92,8 +92,10 @@ async function extractFields(ctx: AppContext, text: string): Promise<Record<stri
 ${text.slice(0, 4000)}
 </document>`;
   try {
-    const raw = await ctx.providers.llm.complete(prompt, { json: true });
-    const parsed = JSON.parse(raw) as { fields?: Record<string, unknown> };
+    const completion = await ctx.providers.llm.complete([{ role: "user", content: prompt }], {
+      json: true,
+    });
+    const parsed = JSON.parse(completion.text) as { fields?: Record<string, unknown> };
     return parsed.fields ?? {};
   } catch {
     return {};

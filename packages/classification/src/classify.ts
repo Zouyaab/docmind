@@ -37,7 +37,7 @@ function heuristicClassify(text: string): ClassificationResult {
     if (idx >= 0) {
       evidence.push({
         documentId: "",
-        excerpt: text.slice(Math.max(0, idx - 20), idx + kw.length + 40),
+        text: text.slice(Math.max(0, idx - 20), idx + kw.length + 40),
       });
       break;
     }

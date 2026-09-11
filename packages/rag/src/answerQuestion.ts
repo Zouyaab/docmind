@@ -46,7 +46,7 @@ export async function answerQuestion(input: AnswerQuestionInput): Promise<Answer
   const citations: Evidence[] = contexts.map((c) => ({
     documentId: c.documentId,
     chunkId: c.chunkId,
-    excerpt: c.text.slice(0, 300),
+    text: c.text.slice(0, 300),
   }));
 
   return { answer: completion.text, citations };
