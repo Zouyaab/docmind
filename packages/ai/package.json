@@ -18,5 +18,7 @@
   "dependencies": {
     "@docmind/core": "workspace:*"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ]
 }

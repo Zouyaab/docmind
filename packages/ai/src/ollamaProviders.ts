@@ -1,10 +1,5 @@
 import { DocMindError } from "@docmind/core";
-import type {
-  EmbeddingProvider,
-  LLMCompletionOptions,
-  LLMMessage,
-  LLMProvider,
-} from "./types.js";
+import type { EmbeddingProvider, LLMCompletionOptions, LLMMessage, LLMProvider } from "./types.js";
 
 export interface OllamaLLMOptions {
   baseUrl: string;
@@ -23,7 +18,10 @@ export class OllamaLLMProvider implements LLMProvider {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  async complete(messages: LLMMessage[], options?: LLMCompletionOptions): Promise<{ text: string }> {
+  async complete(
+    messages: LLMMessage[],
+    options?: LLMCompletionOptions,
+  ): Promise<{ text: string }> {
     const response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

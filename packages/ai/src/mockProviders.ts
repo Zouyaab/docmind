@@ -1,10 +1,5 @@
 import { createHash } from "node:crypto";
-import type {
-  EmbeddingProvider,
-  LLMCompletionOptions,
-  LLMMessage,
-  LLMProvider,
-} from "./types.js";
+import type { EmbeddingProvider, LLMCompletionOptions, LLMMessage, LLMProvider } from "./types.js";
 
 export interface MockLLMResponseRule {
   match: string | RegExp;
@@ -36,8 +31,7 @@ export class MockLLMProvider implements LLMProvider {
       const matched =
         typeof rule.match === "string" ? lower.includes(rule.match) : rule.match.test(prompt);
       if (matched) {
-        const text =
-          typeof rule.response === "function" ? rule.response(messages) : rule.response;
+        const text = typeof rule.response === "function" ? rule.response(messages) : rule.response;
         return { text: options?.json ? ensureJson(text) : text };
       }
     }
