@@ -1,7 +1,11 @@
 import { classifyDocument } from "@docmind/classification";
 import type { DocMindConfig } from "@docmind/config";
-import { DocMindError, type Chunk, type DocumentRecord } from "@docmind/core";
-import { evaluateDecisions, type DecisionResult } from "@docmind/decision-engine";
+import { DocMindError, type Chunk, type DocumentRecord, type Evidence } from "@docmind/core";
+import {
+  buildEvidenceByField,
+  evaluateDecisions,
+  type DecisionResult,
+} from "@docmind/decision-engine";
 import { embedChunks } from "@docmind/embeddings";
 import { chunkText, extractTextFromBytes } from "@docmind/extraction";
 import type { BlobStore } from "@docmind/ingestion";
@@ -153,10 +157,20 @@ export async function decideForDocument(
     fields = (await ctx.stores.fields.get(documentId)) ?? {};
   }
 
-  const decision = evaluateDecisions({
-    documentType: classification?.documentType ?? "unknown",
-    fields: fields as Record<string, string | number | boolean | null>,
-  });
+  const chunks = await ctx.stores.chunks.listByDocument(documentId);
+  const evidenceByField = buildEvidenceByField(documentId, fields, chunks);
+  if (classification?.evidence?.length) {
+    evidenceByField.documentType = classification.evidence as Evidence[];
+  }
+
+  const decision = evaluateDecisions(
+    {
+      documentType: classification?.documentType ?? "unknown",
+      fields: fields as Record<string, string | number | boolean | null>,
+    },
+    undefined,
+    evidenceByField,
+  );
   await ctx.stores.decisions.save(documentId, decision);
   return decision;
 }

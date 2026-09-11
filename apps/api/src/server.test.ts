@@ -94,6 +94,9 @@ Contract value: $150,000`;
     });
     expect(decide.statusCode).toBe(200);
     expect(decide.json().decision).toBe("REVIEW_REQUIRED");
+    const risks = decide.json().risks as Array<{ rule: string; evidence: unknown[] }>;
+    const shortNotice = risks.find((r) => r.rule === "SHORT_TERMINATION_NOTICE");
+    expect(shortNotice?.evidence?.length).toBeGreaterThan(0);
   });
 
   it("rejects malformed search/ask/decide payloads", async () => {

@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 - Configurable AI/embedding providers (`mock` | `ollama`) with timeouts/retries
 - Improved PDF extraction (Tj/hex/stream + scanned/image detection)
 - RAG insufficient-evidence handling, retrieved-chunk injection sanitization, and lexical answer grounding
+- Decision risks attach chunk provenance via `buildEvidenceByField`
 - Vector search filters (`documentId`, `minScore`)
 - Health + readiness endpoints (`/api/v1/health`, `/api/v1/ready`) with persistence/DB status
 - Upload responses include `{ document, duplicate }`

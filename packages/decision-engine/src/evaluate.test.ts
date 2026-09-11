@@ -62,4 +62,39 @@ describe("evaluateDecisions", () => {
     const result = evaluateDecisions({ fields: {} });
     expect(JSON.stringify(result)).not.toMatch(/guaranteed safe/i);
   });
+
+  it("attaches field evidence to triggered risks", () => {
+    const result = evaluateDecisions(
+      {
+        fields: {
+          autoRenewal: true,
+          noticePeriodDays: 14,
+          expirationDate: "2027-01-01",
+          companyName: "Acme",
+          contractValue: 5_000,
+        },
+      },
+      DEFAULT_CONTRACT_RULES,
+      {
+        noticePeriodDays: [
+          {
+            documentId: "doc_1",
+            chunkId: "c1",
+            text: "Notice period: 14 days",
+          },
+        ],
+        autoRenewal: [
+          {
+            documentId: "doc_1",
+            chunkId: "c2",
+            text: "Auto-renewal: true",
+          },
+        ],
+      },
+    );
+
+    const shortNotice = result.risks.find((r) => r.rule === "SHORT_TERMINATION_NOTICE");
+    expect(shortNotice?.evidence.length).toBeGreaterThan(0);
+    expect(shortNotice?.evidence.some((e) => e.chunkId === "c1")).toBe(true);
+  });
 });
