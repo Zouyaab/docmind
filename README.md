@@ -157,6 +157,15 @@ Default tests are **offline** (Mock LLM/embeddings). Ollama-marked suites are op
 - Secrets redacted in error tracking
 - See [SECURITY.md](SECURITY.md)
 
+## Persistence
+
+| Mode | When | Behavior |
+| --- | --- | --- |
+| Memory | `DATABASE_URL` unset (CI/tests default) | In-process stores |
+| PostgreSQL + pgvector | `DATABASE_URL` set | Durable documents, chunks, embeddings, classifications, fields, decisions |
+
+`createStores()` in `@docmind/persistence` selects the backend. Compose defaults to `pgvector/pgvector:pg16`.
+
 ## Observability
 
 - Structured Pino logs via Fastify (`requestId`, method, url, statusCode, responseTime)
