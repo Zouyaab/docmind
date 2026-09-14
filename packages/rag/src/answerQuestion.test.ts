@@ -140,6 +140,44 @@ describe("answerQuestion", () => {
     });
 
     expect(result.grounded).toBe(true);
+    expect(result.citationValidated).toBe(true);
     expect(result.insufficientEvidence).toBeUndefined();
+  });
+
+  it("flags conflicting numeric evidence before answering", async () => {
+    const { llm, embedding } = createMockProviders();
+    const store = new InMemoryVectorStore();
+    // Shared embedding so both conflicting passages are retrieved together.
+    const [shared] = await embedding.embed(["notice period days termination"]);
+    await store.upsert([
+      {
+        id: "v1",
+        documentId: "doc-1",
+        chunkId: "c1",
+        text: "Notice period is 14 days for termination.",
+        vector: shared!,
+      },
+      {
+        id: "v2",
+        documentId: "doc-1",
+        chunkId: "c2",
+        text: "Termination notice period is 30 days.",
+        vector: shared!,
+      },
+    ]);
+
+    const result = await answerQuestion({
+      query: "What is the notice period?",
+      store,
+      llm,
+      embedding,
+      topK: 5,
+      minScore: -1,
+    });
+
+    expect(result.insufficientEvidence).toBe(true);
+    expect(result.citationValidated).toBe(false);
+    expect(result.conflicts?.length).toBeGreaterThan(0);
+    expect(result.answer.toLowerCase()).toMatch(/conflicting evidence/);
   });
 });

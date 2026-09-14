@@ -43,7 +43,7 @@ The LLM does **not** decide ALLOW / REVIEW / REJECT. Rules do.
 
 ## Provenance / evidence
 
-Chunks retain document id, offsets, and optional page numbers. RAG returns citations with source chunk text, scores, and grounding flags. Decision results reference which rules fired.
+Chunks retain document id, offsets, and optional page numbers. RAG returns citations with source chunk text, scores, and grounding flags. Answers keep only citations that lexically support the response (`citationValidated`); obvious numeric conflicts across retrieved passages surface as `conflicts` and refuse an auto-answer. Decision results reference which rules fired.
 
 ## Observability
 
@@ -59,6 +59,7 @@ Chunks retain document id, offsets, and optional page numbers. RAG returns citat
 3. Document text wrapped as untrusted data in prompts
 4. Optional Bearer auth, Helmet headers, rate limits
 5. Lexical answer grounding refuses unsupported RAG answers
+6. Citation validation drops non-supporting passages; conflicting numeric evidence blocks auto-answers
 
 ## Quality gates
 

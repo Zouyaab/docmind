@@ -1,6 +1,12 @@
 import type { LLMProvider, EmbeddingProvider } from "@docmind/ai";
 import type { Evidence } from "@docmind/core";
 import type { SearchOptions, VectorStore } from "@docmind/retrieval";
+import {
+  detectConflictingEvidence,
+  selectSupportingCitations,
+  type CitationCandidate,
+  type EvidenceConflict,
+} from "./citations.js";
 import { isAnswerGrounded } from "./grounding.js";
 import { buildRagPrompt, containsInjectionAttempt, sanitizeUntrustedContext } from "./prompt.js";
 
@@ -20,6 +26,8 @@ export interface AnswerQuestionResult {
   injectionBlocked?: boolean;
   insufficientEvidence?: boolean;
   grounded?: boolean;
+  citationValidated?: boolean;
+  conflicts?: EvidenceConflict[];
   scores?: number[];
 }
 
@@ -31,6 +39,9 @@ const INSUFFICIENT_MESSAGE =
 const UNGROUNDED_MESSAGE =
   "Insufficient evidence: the model response was not adequately supported by retrieved passages.";
 
+const CONFLICT_MESSAGE =
+  "Conflicting evidence: retrieved passages disagree on key numeric facts; review required before acting.";
+
 export async function answerQuestion(input: AnswerQuestionInput): Promise<AnswerQuestionResult> {
   if (containsInjectionAttempt(input.query)) {
     return {
@@ -38,6 +49,7 @@ export async function answerQuestion(input: AnswerQuestionInput): Promise<Answer
       citations: [],
       injectionBlocked: true,
       grounded: false,
+      citationValidated: false,
     };
   }
 
@@ -58,21 +70,36 @@ export async function answerQuestion(input: AnswerQuestionInput): Promise<Answer
       citations: [],
       insufficientEvidence: true,
       grounded: false,
+      citationValidated: false,
       scores: [],
     };
   }
 
-  // Defense-in-depth: strip injection patterns from retrieved chunk text before prompting.
-  const contexts = hits.map((hit) => ({
-    text: sanitizeUntrustedContext(hit.record.text),
-    chunkId: hit.record.chunkId,
-    documentId: hit.record.documentId,
-    score: hit.score,
-    page:
-      typeof hit.record.metadata?.pageNumber === "number"
-        ? hit.record.metadata.pageNumber
-        : undefined,
-  }));
+  const contexts: CitationCandidate[] = hits.map((hit) => {
+    const candidate: CitationCandidate = {
+      text: sanitizeUntrustedContext(hit.record.text),
+      chunkId: hit.record.chunkId,
+      documentId: hit.record.documentId,
+      score: hit.score,
+    };
+    if (typeof hit.record.metadata?.pageNumber === "number") {
+      candidate.page = hit.record.metadata.pageNumber;
+    }
+    return candidate;
+  });
+
+  const conflicts = detectConflictingEvidence(contexts);
+  if (conflicts.length > 0) {
+    return {
+      answer: CONFLICT_MESSAGE,
+      citations: selectSupportingCitations(contexts.map((c) => c.text).join(" "), contexts),
+      insufficientEvidence: true,
+      grounded: false,
+      citationValidated: false,
+      conflicts,
+      scores: contexts.map((c) => c.score ?? 0),
+    };
+  }
 
   const prompt = buildRagPrompt(
     input.query,
@@ -90,26 +117,28 @@ export async function answerQuestion(input: AnswerQuestionInput): Promise<Answer
       citations: [],
       insufficientEvidence: true,
       grounded: false,
-      scores: contexts.map((c) => c.score),
+      citationValidated: false,
+      scores: contexts.map((c) => c.score ?? 0),
     };
   }
 
-  const citations: Evidence[] = contexts.map((c) => {
-    const evidence: Evidence = {
-      documentId: c.documentId,
-      chunkId: c.chunkId,
-      text: c.text.slice(0, 300),
+  const citations = selectSupportingCitations(answerText, contexts);
+  if (citations.length === 0) {
+    return {
+      answer: UNGROUNDED_MESSAGE,
+      citations: [],
+      insufficientEvidence: true,
+      grounded: false,
+      citationValidated: false,
+      scores: contexts.map((c) => c.score ?? 0),
     };
-    if (c.page !== undefined) {
-      evidence.page = c.page;
-    }
-    return evidence;
-  });
+  }
 
   return {
     answer: answerText,
     citations,
     grounded: true,
-    scores: contexts.map((c) => c.score),
+    citationValidated: true,
+    scores: contexts.map((c) => c.score ?? 0),
   };
 }
