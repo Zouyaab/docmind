@@ -13,7 +13,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDocumentRecord } from "@docmind/ingestion";
-import { checkPostgresHealth, createPgPool, runMigrations, type PgPool } from "./pg-client.js";
+import {
+  checkPostgresHealth,
+  createPgPool,
+  ensureEmbeddingDimensions,
+  getEmbeddingVectorDimensions,
+  runMigrations,
+  type PgPool,
+} from "./pg-client.js";
 import { createPostgresStores } from "./postgres.js";
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
@@ -36,7 +43,8 @@ describe("postgres persistence", () => {
     if (!ok) {
       throw new Error("DATABASE_URL set but PostgreSQL is unreachable");
     }
-    await runMigrations(pool);
+    await runMigrations(pool, { embeddingDimensions: 32 });
+    await ensureEmbeddingDimensions(pool, 32);
   });
 
   afterAll(async () => {
@@ -44,14 +52,15 @@ describe("postgres persistence", () => {
   });
 
   it("applies schema migrations idempotently", async () => {
-    const first = await runMigrations(pool);
-    const second = await runMigrations(pool);
+    const first = await runMigrations(pool, { embeddingDimensions: 32 });
+    const second = await runMigrations(pool, { embeddingDimensions: 32 });
     expect(Array.isArray(first)).toBe(true);
     expect(second).toEqual([]);
     const ext = await pool.query<{ extname: string }>(
       "SELECT extname FROM pg_extension WHERE extname = 'vector'",
     );
     expect(ext.rowCount).toBeGreaterThan(0);
+    expect(await getEmbeddingVectorDimensions(pool)).toBe(32);
   });
 
   it("round-trips a document and vector search", async () => {
@@ -88,6 +97,121 @@ describe("postgres persistence", () => {
     const hits = await stores.vectors.search(vector, 3);
     expect(hits.some((h) => h.record.documentId === doc.id)).toBe(true);
     await stores.documents.delete(doc.id);
+  });
+
+  it("ranks nearer embeddings ahead of farther ones", async () => {
+    const stores = createPostgresStores(pool, 32);
+    const doc = createDocumentRecord({
+      filename: "pg-rank.txt",
+      mimeType: "text/plain",
+      hash: `hash-rank-${Date.now()}`,
+      size: 8,
+    });
+    await stores.documents.save(doc);
+    await stores.chunks.replaceForDocument(doc.id, [
+      { id: `chunk_near_${doc.id}`, documentId: doc.id, text: "near" },
+      { id: `chunk_far_${doc.id}`, documentId: doc.id, text: "far" },
+    ]);
+
+    const near = Array.from({ length: 32 }, (_, i) => (i === 0 ? 1 : 0));
+    const far = Array.from({ length: 32 }, (_, i) => (i === 1 ? 1 : 0));
+    const query = Array.from({ length: 32 }, (_, i) => (i === 0 ? 0.9 : i === 1 ? 0.1 : 0));
+
+    await stores.vectors.upsert([
+      {
+        id: `vec_near_${doc.id}`,
+        documentId: doc.id,
+        chunkId: `chunk_near_${doc.id}`,
+        text: "near",
+        vector: near,
+      },
+      {
+        id: `vec_far_${doc.id}`,
+        documentId: doc.id,
+        chunkId: `chunk_far_${doc.id}`,
+        text: "far",
+        vector: far,
+      },
+    ]);
+
+    const hits = await stores.vectors.search(query, { topK: 2, documentId: doc.id });
+    expect(hits).toHaveLength(2);
+    expect(hits[0]?.record.chunkId).toBe(`chunk_near_${doc.id}`);
+    expect(hits[0]!.score).toBeGreaterThan(hits[1]!.score);
+    await stores.documents.delete(doc.id);
+  });
+
+  it("retrieval survives a new connection pool (process boundary)", async () => {
+    const stores = createPostgresStores(pool, 32);
+    const doc = createDocumentRecord({
+      filename: "pg-boundary.txt",
+      mimeType: "text/plain",
+      hash: `hash-boundary-${Date.now()}`,
+      size: FIXTURE_TEXT.length,
+    });
+    await stores.documents.save(doc);
+    await stores.chunks.replaceForDocument(doc.id, [
+      { id: `chunk_${doc.id}`, documentId: doc.id, text: FIXTURE_TEXT },
+    ]);
+    const vector = Array.from({ length: 32 }, (_, i) => (i === 2 ? 1 : 0));
+    await stores.vectors.upsert([
+      {
+        id: `vec_${doc.id}`,
+        documentId: doc.id,
+        chunkId: `chunk_${doc.id}`,
+        text: FIXTURE_TEXT,
+        vector,
+      },
+    ]);
+
+    const freshPool = createPgPool(databaseUrl);
+    try {
+      const freshStores = createPostgresStores(freshPool, 32);
+      const loaded = await freshStores.documents.get(doc.id);
+      expect(loaded?.id).toBe(doc.id);
+      const hits = await freshStores.vectors.search(vector, { topK: 3, documentId: doc.id });
+      expect(hits[0]?.record.documentId).toBe(doc.id);
+    } finally {
+      await freshPool.end();
+    }
+
+    await stores.documents.delete(doc.id);
+  });
+
+  it("resizes empty embedding column when EMBEDDING_DIMENSIONS changes", async () => {
+    await pool.query("TRUNCATE embeddings");
+    const resized = await ensureEmbeddingDimensions(pool, 64);
+    expect(resized).toBe("resized");
+    expect(await getEmbeddingVectorDimensions(pool)).toBe(64);
+
+    const stores = createPostgresStores(pool, 64);
+    const doc = createDocumentRecord({
+      filename: "pg-dims.txt",
+      mimeType: "text/plain",
+      hash: `hash-dims-${Date.now()}`,
+      size: 4,
+    });
+    await stores.documents.save(doc);
+    await stores.chunks.replaceForDocument(doc.id, [
+      { id: `chunk_${doc.id}`, documentId: doc.id, text: "dims" },
+    ]);
+    const vector = Array.from({ length: 64 }, (_, i) => (i === 0 ? 1 : 0));
+    await stores.vectors.upsert([
+      {
+        id: `vec_${doc.id}`,
+        documentId: doc.id,
+        chunkId: `chunk_${doc.id}`,
+        text: "dims",
+        vector,
+      },
+    ]);
+    const hits = await stores.vectors.search(vector, 1);
+    expect(hits[0]?.record.documentId).toBe(doc.id);
+    await stores.documents.delete(doc.id);
+
+    await pool.query("TRUNCATE embeddings");
+    await ensureEmbeddingDimensions(pool, 32);
+    expect(await getEmbeddingVectorDimensions(pool)).toBe(32);
   });
 
   it("persists classification, fields, and decisions for a fixture document", async () => {
