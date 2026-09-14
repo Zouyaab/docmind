@@ -205,5 +205,24 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
 export async function startServer() {
   const { app, config } = await buildServer();
   await app.listen({ port: config.API_PORT, host: config.API_HOST });
+
+  const shutdown = async (signal: string) => {
+    app.log.info({ signal }, "shutting down");
+    try {
+      await app.close();
+      process.exit(0);
+    } catch (error) {
+      app.log.error(error, "shutdown failed");
+      process.exit(1);
+    }
+  };
+
+  process.once("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
+  process.once("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+
   return app;
 }
