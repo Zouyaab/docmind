@@ -7,7 +7,6 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
-    { "path": "../core" },
     { "path": "../ai" },
     { "path": "../classification" },
     { "path": "../extraction" }

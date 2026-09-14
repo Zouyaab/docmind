@@ -22,7 +22,6 @@
   "dependencies": {
     "@docmind/ai": "workspace:*",
     "@docmind/classification": "workspace:*",
-    "@docmind/core": "workspace:*",
     "@docmind/extraction": "workspace:*"
   },
   "files": [

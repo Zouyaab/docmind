@@ -14,7 +14,6 @@
     { "path": "../../packages/ai" },
     { "path": "../../packages/classification" },
     { "path": "../../packages/embeddings" },
-    { "path": "../../packages/retrieval" },
     { "path": "../../packages/persistence" },
     { "path": "../../packages/rag" },
     { "path": "../../packages/decision-engine" },

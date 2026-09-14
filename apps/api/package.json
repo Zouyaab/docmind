@@ -22,7 +22,6 @@
     "@docmind/observability": "workspace:*",
     "@docmind/persistence": "workspace:*",
     "@docmind/rag": "workspace:*",
-    "@docmind/retrieval": "workspace:*",
     "@fastify/cors": "^10.0.2",
     "@fastify/helmet": "^13.0.1",
     "@fastify/multipart": "^9.0.3",

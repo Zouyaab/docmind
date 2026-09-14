@@ -49,3 +49,11 @@ LLM providers interpret and extract. A separate **decision engine** applies dete
 ```bash
 pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:coverage && pnpm build
 ```
+
+## Workspace dependencies
+
+- Each `apps/*` and `packages/*` package declares only the dependencies it **directly imports**.
+- Workspace packages use `workspace:*` ranges; external packages are pinned in the root `pnpm-lock.yaml`.
+- Vitest, ESLint, TypeScript, and Prettier live on the **root** `devDependencies` and run workspace-wide — packages do not redeclare them.
+- `@docmind/api` depends on domain packages (`ingestion`, `rag`, `persistence`, …) but not on `@docmind/retrieval` directly; retrieval reaches the API through `@docmind/rag` / `@docmind/persistence`.
+- Dependabot watches the root npm ecosystem (`/.github/dependabot.yml`) so the single lockfile and nested package manifests stay covered.
