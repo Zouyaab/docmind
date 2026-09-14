@@ -29,6 +29,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "bootstrap": "node scripts/bootstrap.mjs",
     "build": "pnpm -r --if-present run build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
@@ -38,6 +39,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "evaluate": "pnpm --filter @docmind/evaluation start",
     "benchmark": "pnpm --filter @docmind/evaluation benchmark",
     "dev": "pnpm --filter @docmind/api dev",

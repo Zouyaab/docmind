@@ -1,21 +1,32 @@
 /**
  * Opt-in Postgres integration tests.
- * Run with: DATABASE_URL=postgres://... pnpm vitest run packages/persistence/src/postgres.integration.test.ts
  *
- * Excluded from default CI via vitest exclude pattern *.integration.test.ts
+ * Run with a reachable DATABASE_URL, for example:
+ *   DATABASE_URL=postgres://docmind:docmind@127.0.0.1:5432/docmind pnpm test:integration
+ *
+ * Excluded from the default offline suite (`pnpm test`) via vitest.config.ts.
+ * When DATABASE_URL is unset the suite is explicitly skipped (not silently empty).
+ * When DATABASE_URL is set but PostgreSQL is unreachable, the suite fails.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDocumentRecord } from "@docmind/ingestion";
 import { checkPostgresHealth, createPgPool, runMigrations, type PgPool } from "./pg-client.js";
 import { createPostgresStores } from "./postgres.js";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.DATABASE_URL?.trim();
 
-describe.runIf(Boolean(databaseUrl))("postgres persistence", () => {
+describe("postgres persistence", () => {
+  if (!databaseUrl) {
+    it.skip("skipped — set DATABASE_URL to run PostgreSQL integration tests", () => {
+      // Documented skip: offline CI and fresh clones must not require Postgres.
+    });
+    return;
+  }
+
   let pool: PgPool;
 
   beforeAll(async () => {
-    pool = createPgPool(databaseUrl!);
+    pool = createPgPool(databaseUrl);
     const ok = await checkPostgresHealth(pool);
     if (!ok) {
       throw new Error("DATABASE_URL set but PostgreSQL is unreachable");

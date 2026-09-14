@@ -5,10 +5,7 @@ import { processDocument } from "../pipeline.js";
 import { documentIdSchema, errorResponseSchema } from "../schemas.js";
 import type { ApiDeps } from "../types.js";
 
-export async function registerDocumentRoutes(
-  app: FastifyInstance,
-  deps: ApiDeps,
-): Promise<void> {
+export async function registerDocumentRoutes(app: FastifyInstance, deps: ApiDeps): Promise<void> {
   const { config, stores, blobs, ctx, metrics } = deps;
 
   app.post(

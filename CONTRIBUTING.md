@@ -5,10 +5,19 @@ Thanks for helping improve DocMind.
 ## Development setup
 
 ```bash
+pnpm bootstrap
+```
+
+Or manually:
+
+```bash
 pnpm install --frozen-lockfile
 pnpm build
 pnpm test
 ```
+
+`pnpm bootstrap` is the supported fresh-clone path: frozen install, build, and offline tests
+with mock AI and no PostgreSQL.
 
 ## Workflow
 

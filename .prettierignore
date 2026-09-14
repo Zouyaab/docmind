@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+coverage/
+dist/
+.data/
+.docmind-data/
+*.tsbuildinfo
+apps/web/dist/

@@ -61,6 +61,16 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Test with coverage gates
         run: pnpm test:coverage
+      - name: Upload coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: |
+            coverage/lcov.info
+            coverage/coverage-summary.json
+          if-no-files-found: warn
+          retention-days: 14
 
   build:
     runs-on: ubuntu-latest

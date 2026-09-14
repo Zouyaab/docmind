@@ -64,14 +64,16 @@ See [docs/architecture.md](docs/architecture.md) and [ARCHITECTURE.md](ARCHITECT
 ```bash
 git clone https://github.com/Zouyaab/docmind.git
 cd docmind
-pnpm install --frozen-lockfile
-pnpm build
-pnpm test
+pnpm bootstrap
 pnpm dev
 # API: http://127.0.0.1:3000  OpenAPI: /docs  Ready: /api/v1/ready
 ```
 
-No API keys, cloud accounts, or Postgres are required for this path (in-memory persistence + mock AI).
+`pnpm bootstrap` installs with a frozen lockfile, builds the workspace, and runs the
+offline test suite. It clears `DATABASE_URL` for that run and forces `AI_PROVIDER=mock`,
+so no cloud accounts, API keys, Ollama, or PostgreSQL are required.
+
+Equivalent manual steps: `pnpm install --frozen-lockfile && pnpm build && pnpm test`.
 
 ## Environment variables
 
@@ -144,18 +146,30 @@ docker compose -f docker/docker-compose.yml --profile ollama up --build
 
 ## Testing
 
+DocMind separates three test categories:
+
+| Category                   | Command                                               | External services                |
+| -------------------------- | ----------------------------------------------------- | -------------------------------- |
+| **Offline (default)**      | `pnpm test` / `pnpm test:coverage`                    | None — mock AI, in-memory stores |
+| **PostgreSQL integration** | `DATABASE_URL=… pnpm test:integration`                | Reachable Postgres/pgvector      |
+| **Ollama / live AI**       | `pnpm test:integration` (picks up `*.ollama.test.ts`) | Reachable Ollama endpoint        |
+
 ```bash
 # Default offline suite (no DATABASE_URL / Ollama / API keys)
 pnpm test
 pnpm test:coverage
 
-# Opt-in Postgres integration (requires a reachable DATABASE_URL)
-# DATABASE_URL=postgres://docmind:docmind@127.0.0.1:5432/docmind pnpm exec vitest run packages/persistence/src/postgres.integration.test.ts
+# Opt-in integration config (Postgres + Ollama file patterns)
+# Without DATABASE_URL, Postgres cases are explicitly skipped (not hidden failures).
+pnpm test:integration
 
-# Opt-in Ollama suites (*.ollama.test.ts) — excluded by default in vitest.config.ts
+# With Postgres (Compose DB on localhost:5432):
+# DATABASE_URL=postgres://docmind:docmind@127.0.0.1:5432/docmind pnpm test:integration
 ```
 
-Default Vitest excludes `**/*.integration.test.ts` and `**/*.ollama.test.ts`.
+Default Vitest (`vitest.config.ts`) excludes `**/*.integration.test.ts` and `**/*.ollama.test.ts`.
+When `DATABASE_URL` is set but PostgreSQL is down, integration tests **fail** — they do not
+pretend to pass.
 
 ## API / CLI / SDK
 
