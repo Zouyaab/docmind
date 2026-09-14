@@ -1,5 +1,7 @@
 -- DocMind persistence schema (PostgreSQL + pgvector)
--- Default embedding dimension: 32 (Mock provider). Set EMBEDDING_DIMENSIONS to match.
+-- Default embedding dimension in this file: 32 (Mock provider).
+-- runMigrations() rewrites vector(N) to match EMBEDDING_DIMENSIONS on first apply.
+-- ensureEmbeddingDimensions() resizes an empty embeddings column when dimensions change.
 
 CREATE EXTENSION IF NOT EXISTS vector;
 

@@ -81,19 +81,19 @@ Equivalent manual steps: `pnpm install --frozen-lockfile && pnpm build && pnpm t
 
 Copy [`.env.example`](.env.example) to `.env`. Every variable used by the config loader is documented there.
 
-| Variable                | Required      | Purpose                                      |
-| ----------------------- | ------------- | -------------------------------------------- |
-| `API_HOST` / `API_PORT` | No (defaults) | Bind address                                 |
-| `MAX_UPLOAD_BYTES`      | No            | Upload cap                                   |
-| `LOG_LEVEL`             | No            | Structured log level                         |
-| `API_TOKEN`             | No            | Bearer auth when non-empty                   |
-| `DATABASE_URL`          | No            | Enable PostgreSQL + pgvector persistence     |
-| `EMBEDDING_DIMENSIONS`  | No            | Must match DB schema (default `32`)          |
-| `AI_PROVIDER`           | No            | `mock` (default) or `ollama`                 |
-| `OLLAMA_*`              | No            | Optional live model endpoint                 |
-| `RAG_MIN_SCORE`         | No            | Minimum retrieval score for RAG              |
-| `RATE_LIMIT_MAX`        | No            | Requests per minute per client (default 120) |
-| `ERROR_SINK_URL`        | No            | Optional webhook for redacted error events   |
+| Variable                | Required      | Purpose                                           |
+| ----------------------- | ------------- | ------------------------------------------------- |
+| `API_HOST` / `API_PORT` | No (defaults) | Bind address                                      |
+| `MAX_UPLOAD_BYTES`      | No            | Upload cap                                        |
+| `LOG_LEVEL`             | No            | Structured log level                              |
+| `API_TOKEN`             | No            | Bearer auth when non-empty                        |
+| `DATABASE_URL`          | No            | Enable PostgreSQL + pgvector persistence          |
+| `EMBEDDING_DIMENSIONS`  | No            | pgvector size (default `32`; must match provider) |
+| `AI_PROVIDER`           | No            | `mock` (default) or `ollama`                      |
+| `OLLAMA_*`              | No            | Optional live model endpoint                      |
+| `RAG_MIN_SCORE`         | No            | Minimum retrieval score for RAG                   |
+| `RATE_LIMIT_MAX`        | No            | Requests per minute per client (default 120)      |
+| `ERROR_SINK_URL`        | No            | Optional webhook for redacted error events        |
 
 ## Local development
 
@@ -226,7 +226,6 @@ MIT — [LICENSE](LICENSE)
 ## Roadmap
 
 - Production PDF parser (current heuristic is MVP)
-- Configurable pgvector dimensions beyond the default mock size (32)
 - Stronger multi-tenant auth / quotas
 - Optional external metrics sink (OpenTelemetry)
 

@@ -376,9 +376,17 @@ export class PostgresVectorStore implements VectorStore {
           score: Number(row.score),
         }))
         .filter((hit) => (options.minScore === undefined ? true : hit.score >= options.minScore));
-    } catch {
-      this.fallbackCount += 1;
-      return this.searchInProcess(queryVector, topK, options);
+    } catch (error) {
+      try {
+        this.fallbackCount += 1;
+        return await this.searchInProcess(queryVector, topK, options);
+      } catch {
+        throw new DocMindError(
+          "DATABASE_ERROR",
+          error instanceof Error ? error.message : "PostgreSQL vector search failed",
+          503,
+        );
+      }
     }
   }
 

@@ -1,6 +1,12 @@
 import { DocMindError } from "@docmind/core";
 import { createMemoryStores } from "./memory.js";
-import { checkPostgresHealth, createPgPool, runMigrations, type PgPool } from "./pg-client.js";
+import {
+  checkPostgresHealth,
+  createPgPool,
+  ensureEmbeddingDimensions,
+  runMigrations,
+  type PgPool,
+} from "./pg-client.js";
 import { createPostgresStores } from "./postgres.js";
 import type { DocMindStores, PersistenceMode } from "./types.js";
 
@@ -32,7 +38,15 @@ export {
   createPostgresStores,
 } from "./postgres.js";
 
-export { checkPostgresHealth, createPgPool, runMigrations, type PgPool } from "./pg-client.js";
+export {
+  checkPostgresHealth,
+  createPgPool,
+  ensureEmbeddingDimensions,
+  getEmbeddingVectorDimensions,
+  renderMigrationSql,
+  runMigrations,
+  type PgPool,
+} from "./pg-client.js";
 
 export interface CreateStoresOptions {
   databaseUrl?: string;
@@ -66,10 +80,12 @@ export async function createStores(options: CreateStoresOptions = {}): Promise<C
     );
   }
 
-  await runMigrations(pool);
+  const embeddingDimensions = options.embeddingDimensions ?? 32;
+  await runMigrations(pool, { embeddingDimensions });
+  await ensureEmbeddingDimensions(pool, embeddingDimensions);
   return {
     mode: "postgres",
-    stores: createPostgresStores(pool, options.embeddingDimensions ?? 32),
+    stores: createPostgresStores(pool, embeddingDimensions),
     pool,
   };
 }

@@ -20,7 +20,10 @@ This MVP is designed for **offline, local development and evaluation**. Known li
 - **Default (no `DATABASE_URL`)**: document metadata, chunks, classifications, fields, decisions, and vectors are **in-memory** (lost on process restart). Ideal for unit tests and quick local demos.
 - **With `DATABASE_URL`**: `@docmind/persistence` uses PostgreSQL + **pgvector** for durable documents, chunks, embeddings, classifications, fields, and decisions. Docker Compose enables this by default.
 - Blob storage uses the local filesystem under `.data/blobs`.
-- Postgres schema embeds `vector(32)` by default to match the mock embedding dimension. Keep `EMBEDDING_DIMENSIONS=32` unless you also change the migration/schema.
+- Postgres schema defaults to `vector(32)` for the mock provider. Setting
+  `EMBEDDING_DIMENSIONS` applies that size on first migration and can resize an
+  **empty** embeddings column. Changing dimensions with existing vectors fails
+  with a clear error until the table is cleared.
 
 ## Security
 
