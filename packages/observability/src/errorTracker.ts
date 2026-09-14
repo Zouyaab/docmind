@@ -39,6 +39,11 @@ function redactValue(value: unknown): unknown {
     for (const [key, nested] of Object.entries(value)) {
       if (/token|secret|password|authorization|api[_-]?key/i.test(key)) {
         result[key] = "[REDACTED]";
+      } else if (
+        /^(content|text|body|bytes|raw|payload|chunkText|documentText|quote)$/i.test(key) ||
+        /document.*(?:text|content|body)/i.test(key)
+      ) {
+        result[key] = "[REDACTED_CONTENT]";
       } else {
         result[key] = redactValue(nested);
       }

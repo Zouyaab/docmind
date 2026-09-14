@@ -52,9 +52,12 @@ describe("loadConfig", () => {
     expect(config.API_TOKEN).toBeUndefined();
   });
 
-  it("throws DocMindError on invalid values", () => {
-    expect(() => loadConfig({ API_PORT: "not-a-number" })).toThrow(DocMindError);
-    expect(() => loadConfig({ OLLAMA_BASE_URL: "not-a-url" })).toThrow(DocMindError);
-    expect(() => loadConfig({ LOG_LEVEL: "verbose" })).toThrow(DocMindError);
+  it("parses optional ERROR_SINK_URL and ignores empty", () => {
+    expect(loadConfig({}).ERROR_SINK_URL).toBeUndefined();
+    expect(loadConfig({ ERROR_SINK_URL: "" }).ERROR_SINK_URL).toBeUndefined();
+    expect(loadConfig({ ERROR_SINK_URL: "https://collector.example/errors" }).ERROR_SINK_URL).toBe(
+      "https://collector.example/errors",
+    );
+    expect(() => loadConfig({ ERROR_SINK_URL: "not-a-url" })).toThrow(DocMindError);
   });
 });

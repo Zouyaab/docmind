@@ -22,6 +22,8 @@ const configSchema = z.object({
   RAG_MIN_SCORE: z.coerce.number().min(0).max(1).default(0),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+  /** Optional HTTPS webhook for redacted error events (disabled when unset). */
+  ERROR_SINK_URL: z.string().url().optional(),
 });
 
 export type DocMindConfig = z.infer<typeof configSchema>;

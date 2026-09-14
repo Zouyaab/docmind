@@ -10,7 +10,12 @@ import swaggerUi from "@fastify/swagger-ui";
 import { loadConfig, type DocMindConfig } from "@docmind/config";
 import { DOCMIND_VERSION } from "@docmind/core";
 import { LocalFsBlobStore } from "@docmind/ingestion";
-import { createErrorTracker, MetricsRegistry, type ErrorTracker } from "@docmind/observability";
+import {
+  createErrorTracker,
+  createWebhookErrorSink,
+  MetricsRegistry,
+  type ErrorTracker,
+} from "@docmind/observability";
 import {
   createStores,
   type DocMindStores,
@@ -49,7 +54,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<{
 }> {
   const config = options.config ?? loadConfig();
   const metrics = options.metrics ?? new MetricsRegistry();
-  const errorTracker = options.errorTracker ?? createErrorTracker();
+  const errorTracker =
+    options.errorTracker ??
+    createErrorTracker({
+      sinks: config.ERROR_SINK_URL ? [createWebhookErrorSink({ url: config.ERROR_SINK_URL })] : [],
+    });
 
   const created =
     options.stores != null

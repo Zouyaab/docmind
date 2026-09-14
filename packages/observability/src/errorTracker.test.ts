@@ -23,6 +23,7 @@ describe("createErrorTracker", () => {
     const tracked = tracker.track(new Error("Bearer abc123token"), {
       apiToken: "super-secret",
       authorization: "Bearer xyz",
+      text: "confidential contract clause",
       safe: "visible",
     });
 
@@ -31,6 +32,7 @@ describe("createErrorTracker", () => {
     expect(tracked.context).toEqual({
       apiToken: "[REDACTED]",
       authorization: "[REDACTED]",
+      text: "[REDACTED_CONTENT]",
       safe: "visible",
     });
   });

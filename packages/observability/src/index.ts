@@ -5,3 +5,8 @@ export {
   type ErrorTracker,
   type TrackedError,
 } from "./errorTracker.js";
+export {
+  createSafeErrorSink,
+  createWebhookErrorSink,
+  type WebhookErrorSinkOptions,
+} from "./sinks.js";

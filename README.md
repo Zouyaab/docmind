@@ -199,7 +199,8 @@ Compose defaults to `pgvector/pgvector:pg16`.
 - Structured Pino logs via Fastify (`requestId`, method, url, statusCode, responseTime)
 - In-process metrics at `GET /api/v1/metrics`
 - Error tracker captures failures with redaction (no client stack leaks)
-- Production deployments can register an `ErrorSink` to forward events to an external system
+- Optional `ERROR_SINK_URL` webhook sink for production (redacted JSON; sink failures are ignored)
+- Custom sinks can be registered via `ErrorTracker.addSink` / `createWebhookErrorSink`
 
 ## Troubleshooting
 
