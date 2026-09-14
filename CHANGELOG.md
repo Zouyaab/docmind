@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.1] - 2026-09-14
+
+### Added
+
+- Configurable pgvector embedding dimensions via `EMBEDDING_DIMENSIONS` (first migration + empty-table resize)
+- Postgres integration coverage for ranking order, cross-pool retrieval, and dimension resize
+
+### Fixed
+
+- API process handles SIGTERM/SIGINT and closes the Postgres pool via Fastify `onClose`
+- Docker image HEALTHCHECK probes `/api/v1/ready` so DB outages are not reported as healthy
+- Vector search surfaces a database error when both SQL and fallback paths fail
+
+### Changed
+
+- Docs clarify dimension changes with existing vectors fail until embeddings are cleared
+
 ## [0.3.0] - 2026-09-14
 
 ### Added
