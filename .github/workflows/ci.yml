@@ -72,6 +72,30 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Start ephemeral Postgres/pgvector
+        run: docker compose -f docker/docker-compose.integration.yml up -d --wait
+      - name: Run Postgres persistence integration tests
+        env:
+          DATABASE_URL: postgres://docmind:docmind@127.0.0.1:54329/docmind
+        run: pnpm test:integration
+      - name: Tear down integration Postgres
+        if: always()
+        run: docker compose -f docker/docker-compose.integration.yml down -v --remove-orphans
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20

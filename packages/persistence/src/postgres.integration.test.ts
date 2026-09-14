@@ -1,8 +1,11 @@
 /**
  * Opt-in Postgres integration tests.
  *
- * Run with a reachable DATABASE_URL, for example:
- *   DATABASE_URL=postgres://docmind:docmind@127.0.0.1:5432/docmind pnpm test:integration
+ * Preferred local/CI runner (ephemeral Docker Postgres on port 54329):
+ *   pnpm test:integration:docker
+ *
+ * Manual:
+ *   DATABASE_URL=postgres://docmind:docmind@127.0.0.1:54329/docmind pnpm test:integration
  *
  * Excluded from the default offline suite (`pnpm test`) via vitest.config.ts.
  * When DATABASE_URL is unset the suite is explicitly skipped (not silently empty).
@@ -14,6 +17,8 @@ import { checkPostgresHealth, createPgPool, runMigrations, type PgPool } from ".
 import { createPostgresStores } from "./postgres.js";
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
+
+const FIXTURE_TEXT = "Termination notice is fourteen days. Auto-renewal: true.";
 
 describe("postgres persistence", () => {
   if (!databaseUrl) {
@@ -38,21 +43,35 @@ describe("postgres persistence", () => {
     await pool.end();
   });
 
+  it("applies schema migrations idempotently", async () => {
+    const first = await runMigrations(pool);
+    const second = await runMigrations(pool);
+    expect(Array.isArray(first)).toBe(true);
+    expect(second).toEqual([]);
+    const ext = await pool.query<{ extname: string }>(
+      "SELECT extname FROM pg_extension WHERE extname = 'vector'",
+    );
+    expect(ext.rowCount).toBeGreaterThan(0);
+  });
+
   it("round-trips a document and vector search", async () => {
     const stores = createPostgresStores(pool, 32);
     const doc = createDocumentRecord({
-      filename: "pg.txt",
+      filename: "pg-fixture.txt",
       mimeType: "text/plain",
-      hash: `hash-${Date.now()}`,
-      size: 12,
+      hash: `hash-doc-${Date.now()}`,
+      size: FIXTURE_TEXT.length,
     });
     await stores.documents.save(doc);
+    const loaded = await stores.documents.get(doc.id);
+    expect(loaded?.filename).toBe("pg-fixture.txt");
+
     await stores.chunks.replaceForDocument(doc.id, [
       {
         id: `chunk_${doc.id}`,
         documentId: doc.id,
-        text: "Termination notice is fourteen days",
-        metadata: {},
+        text: FIXTURE_TEXT,
+        metadata: { page: 1 },
       },
     ]);
     const vector = Array.from({ length: 32 }, (_, i) => (i === 0 ? 1 : 0));
@@ -61,13 +80,63 @@ describe("postgres persistence", () => {
         id: `vec_${doc.id}`,
         documentId: doc.id,
         chunkId: `chunk_${doc.id}`,
-        text: "Termination notice is fourteen days",
+        text: FIXTURE_TEXT,
         vector,
-        metadata: {},
+        metadata: { page: 1 },
       },
     ]);
     const hits = await stores.vectors.search(vector, 3);
     expect(hits.some((h) => h.record.documentId === doc.id)).toBe(true);
+    await stores.documents.delete(doc.id);
+  });
+
+  it("persists classification, fields, and decisions for a fixture document", async () => {
+    const stores = createPostgresStores(pool, 32);
+    const doc = createDocumentRecord({
+      filename: "pg-decision.txt",
+      mimeType: "text/plain",
+      hash: `hash-decision-${Date.now()}`,
+      size: FIXTURE_TEXT.length,
+    });
+    await stores.documents.save(doc);
+
+    await stores.classifications.save({
+      documentId: doc.id,
+      documentType: "contract",
+      confidence: 0.91,
+      band: "HIGH_CONFIDENCE",
+      evidence: [{ documentId: doc.id, chunkId: `chunk_${doc.id}`, text: "Auto-renewal" }],
+      updatedAt: new Date().toISOString(),
+    });
+    await stores.fields.save(doc.id, {
+      notice_period_days: 14,
+      auto_renewal: true,
+    });
+    const decisionId = await stores.decisions.save(doc.id, {
+      decision: "REVIEW_REQUIRED",
+      riskScore: 0.72,
+      risks: [
+        {
+          rule: "SHORT_TERMINATION_NOTICE",
+          title: "Short termination notice",
+          severity: "MEDIUM",
+          explanation: "Notice period under 30 days",
+          points: 25,
+          evidence: [{ documentId: doc.id, chunkId: `chunk_${doc.id}`, text: "fourteen days" }],
+        },
+      ],
+      rulesEvaluated: 1,
+      note: "Short notice requires review",
+    });
+
+    const classification = await stores.classifications.get(doc.id);
+    expect(classification?.documentType).toBe("contract");
+    const fields = await stores.fields.get(doc.id);
+    expect(fields).toMatchObject({ notice_period_days: 14, auto_renewal: true });
+    const decision = await stores.decisions.latest(doc.id);
+    expect(decision?.decision).toBe("REVIEW_REQUIRED");
+    expect(decisionId).toBeTruthy();
+
     await stores.documents.delete(doc.id);
   });
 });

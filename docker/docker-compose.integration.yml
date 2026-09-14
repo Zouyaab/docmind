@@ -1,0 +1,26 @@
+# Ephemeral PostgreSQL/pgvector for integration tests only.
+# No API service, no persistent volumes — destroyed with `down -v`.
+#
+# Local:
+#   docker compose -f docker/docker-compose.integration.yml up -d --wait
+#   DATABASE_URL=postgres://docmind:docmind@127.0.0.1:54329/docmind pnpm test:integration
+#   docker compose -f docker/docker-compose.integration.yml down -v
+
+services:
+  postgres-integration:
+    image: pgvector/pgvector:pg16
+    container_name: docmind-postgres-integration
+    environment:
+      POSTGRES_USER: docmind
+      POSTGRES_PASSWORD: docmind
+      POSTGRES_DB: docmind
+    ports:
+      - "54329:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docmind -d docmind"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s

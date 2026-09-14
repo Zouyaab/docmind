@@ -151,7 +151,7 @@ DocMind separates three test categories:
 | Category                   | Command                                               | External services                |
 | -------------------------- | ----------------------------------------------------- | -------------------------------- |
 | **Offline (default)**      | `pnpm test` / `pnpm test:coverage`                    | None — mock AI, in-memory stores |
-| **PostgreSQL integration** | `DATABASE_URL=… pnpm test:integration`                | Reachable Postgres/pgvector      |
+| **PostgreSQL integration** | `pnpm test:integration:docker`                        | Ephemeral Postgres/pgvector      |
 | **Ollama / live AI**       | `pnpm test:integration` (picks up `*.ollama.test.ts`) | Reachable Ollama endpoint        |
 
 ```bash
@@ -159,17 +159,17 @@ DocMind separates three test categories:
 pnpm test
 pnpm test:coverage
 
-# Opt-in integration config (Postgres + Ollama file patterns)
-# Without DATABASE_URL, Postgres cases are explicitly skipped (not hidden failures).
-pnpm test:integration
+# Opt-in Postgres via ephemeral Docker (port 54329, torn down after)
+pnpm test:integration:docker
 
-# With Postgres (Compose DB on localhost:5432):
-# DATABASE_URL=postgres://docmind:docmind@127.0.0.1:5432/docmind pnpm test:integration
+# Opt-in integration config without Docker (explicit skip if DATABASE_URL unset)
+pnpm test:integration
 ```
 
 Default Vitest (`vitest.config.ts`) excludes `**/*.integration.test.ts` and `**/*.ollama.test.ts`.
 When `DATABASE_URL` is set but PostgreSQL is down, integration tests **fail** — they do not
-pretend to pass.
+pretend to pass. CI runs the offline suite plus a dedicated `integration` job that starts
+`docker/docker-compose.integration.yml`, applies migrations through the tests, and tears down.
 
 ## API / CLI / SDK
 

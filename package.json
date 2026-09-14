@@ -40,6 +40,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration:docker": "node scripts/run-integration.mjs",
     "evaluate": "pnpm --filter @docmind/evaluation start",
     "benchmark": "pnpm --filter @docmind/evaluation benchmark",
     "dev": "pnpm --filter @docmind/api dev",
