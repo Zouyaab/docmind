@@ -1,11 +1,18 @@
 export type ExtractionStatus =
   "ok" | "unsupported_binary" | "empty" | "failed" | "scanned_or_image_only";
 
+export interface ExtractedPage {
+  pageNumber: number;
+  text: string;
+}
+
 export interface TextExtractionResult {
   text: string;
   status: ExtractionStatus;
   note?: string;
   pageCount?: number;
+  /** Optional page segments for provenance-aware chunking. */
+  pages?: ExtractedPage[];
 }
 
 const MAX_EXTRACT_CHARS = 2_000_000;
@@ -20,7 +27,16 @@ export function extractTextFromBytes(bytes: Uint8Array, mimeType: string): TextE
     if (text.trim().length === 0) {
       return { text: "", status: "empty", note: "Text document is whitespace-only" };
     }
-    return { text: text.slice(0, MAX_EXTRACT_CHARS), status: "ok" };
+    const pages = splitFormFeedPages(text);
+    return {
+      text: text.slice(0, MAX_EXTRACT_CHARS),
+      status: "ok",
+      ...(pages.length > 1
+        ? { pageCount: pages.length, pages }
+        : pages.length === 1
+          ? { pageCount: 1, pages }
+          : {}),
+    };
   }
 
   if (mimeType === "application/pdf") {
@@ -32,6 +48,14 @@ export function extractTextFromBytes(bytes: Uint8Array, mimeType: string): TextE
     status: "unsupported_binary",
     note: `No extractor available for mime type ${mimeType}`,
   };
+}
+
+function splitFormFeedPages(text: string): ExtractedPage[] {
+  const parts = text
+    .split("\f")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  return parts.map((pageText, index) => ({ pageNumber: index + 1, text: pageText }));
 }
 
 function extractPdf(bytes: Uint8Array): TextExtractionResult {
@@ -52,6 +76,7 @@ function extractPdf(bytes: Uint8Array): TextExtractionResult {
         status: "ok",
         note: "PDF text extracted from content streams (lossy; embedded fonts may reduce quality)",
         pageCount: fromObjects.pageCount,
+        pages: fromObjects.pages,
       };
     }
 
@@ -62,6 +87,7 @@ function extractPdf(bytes: Uint8Array): TextExtractionResult {
         status: "ok",
         note: "PDF extracted via printable stream heuristic; layout/encoding may be lossy",
         pageCount: heuristic.pageCount,
+        pages: heuristic.pages,
       };
     }
 
@@ -80,13 +106,84 @@ function extractPdf(bytes: Uint8Array): TextExtractionResult {
   }
 }
 
-function extractPdfTextObjects(bytes: Uint8Array): { text: string; pageCount: number } {
+function extractPdfTextObjects(bytes: Uint8Array): {
+  text: string;
+  pageCount: number;
+  pages: ExtractedPage[];
+} {
   const latin1 = new TextDecoder("latin1").decode(bytes);
   const pageCount = Math.max(1, (latin1.match(/\/Type\s*\/Page[^s]/g) ?? []).length);
+  const pageSegments = splitPdfPageSegments(latin1);
+  const pages: ExtractedPage[] = pageSegments.map((segment, index) => ({
+    pageNumber: index + 1,
+    text: extractLiteralsFromSegment(segment),
+  }));
+  const nonEmpty = pages.filter((page) => page.text.trim().length > 0);
+  const usable = nonEmpty.length > 0 ? nonEmpty : pages;
+  return {
+    text: usable
+      .map((page) => page.text)
+      .filter(Boolean)
+      .join("\n\f\n")
+      .trim(),
+    pageCount,
+    pages: usable,
+  };
+}
+
+function extractPdfPrintableStreams(bytes: Uint8Array): {
+  text: string;
+  pageCount: number;
+  pages: ExtractedPage[];
+} {
+  const latin1 = new TextDecoder("latin1").decode(bytes);
+  const pageCount = Math.max(1, (latin1.match(/\/Type\s*\/Page[^s]/g) ?? []).length);
+  const pageSegments = splitPdfPageSegments(latin1);
+  const pages: ExtractedPage[] = pageSegments.map((segment, index) => {
+    const streamMatches = segment.match(/stream[\s\S]*?endstream/g) ?? [];
+    const collected: string[] = [];
+    for (const block of streamMatches) {
+      const printable = block.match(/[\x20-\x7E\n\r\t]+/g);
+      if (printable) {
+        collected.push(...printable.map((part) => part.trim()).filter((part) => part.length > 2));
+      }
+    }
+    return {
+      pageNumber: index + 1,
+      text: collected.join("\n").replace(/\s+\n/g, "\n").trim(),
+    };
+  });
+  const nonEmpty = pages.filter((page) => page.text.trim().length > 0);
+  const usable = nonEmpty.length > 0 ? nonEmpty : pages;
+  return {
+    text: usable
+      .map((page) => page.text)
+      .filter(Boolean)
+      .join("\n\f\n")
+      .trim(),
+    pageCount,
+    pages: usable,
+  };
+}
+
+function splitPdfPageSegments(latin1: string): string[] {
+  const markers = [...latin1.matchAll(/\/Type\s*\/Page[^s]/g)];
+  if (markers.length <= 1) {
+    return [latin1];
+  }
+  const segments: string[] = [];
+  for (let i = 0; i < markers.length; i += 1) {
+    const start = markers[i]!.index ?? 0;
+    const end = i + 1 < markers.length ? (markers[i + 1]!.index ?? latin1.length) : latin1.length;
+    segments.push(latin1.slice(start, end));
+  }
+  return segments;
+}
+
+function extractLiteralsFromSegment(segment: string): string {
   const parts: string[] = [];
 
-  // Literal strings in PDF content: (Hello World) Tj / TJ
-  const literalMatches = latin1.matchAll(/\((?:\\.|[^\\)])*\)\s*Tj/g);
+  const literalMatches = segment.matchAll(/\((?:\\.|[^\\)])*\)\s*Tj/g);
   for (const match of literalMatches) {
     const raw = match[0].replace(/\)\s*Tj$/, "");
     const inner = raw.slice(1);
@@ -94,8 +191,7 @@ function extractPdfTextObjects(bytes: Uint8Array): { text: string; pageCount: nu
     if (decoded.trim()) parts.push(decoded);
   }
 
-  // Hex strings: <48656C6C6F> Tj
-  const hexMatches = latin1.matchAll(/<([0-9A-Fa-f\s]+)>\s*Tj/g);
+  const hexMatches = segment.matchAll(/<([0-9A-Fa-f\s]+)>\s*Tj/g);
   for (const match of hexMatches) {
     const hex = (match[1] ?? "").replace(/\s+/g, "");
     if (hex.length % 2 !== 0) continue;
@@ -109,33 +205,11 @@ function extractPdfTextObjects(bytes: Uint8Array): { text: string; pageCount: nu
     if (decoded.trim()) parts.push(decoded);
   }
 
-  return {
-    text: parts
-      .join(" ")
-      .replace(/[ \t]+\n/g, "\n")
-      .replace(/\s{2,}/g, " ")
-      .trim(),
-    pageCount,
-  };
-}
-
-function extractPdfPrintableStreams(bytes: Uint8Array): { text: string; pageCount: number } {
-  const latin1 = new TextDecoder("latin1").decode(bytes);
-  const pageCount = Math.max(1, (latin1.match(/\/Type\s*\/Page[^s]/g) ?? []).length);
-  const streamMatches = latin1.match(/stream[\s\S]*?endstream/g) ?? [];
-  const collected: string[] = [];
-
-  for (const block of streamMatches) {
-    const printable = block.match(/[\x20-\x7E\n\r\t]+/g);
-    if (printable) {
-      collected.push(...printable.map((segment) => segment.trim()).filter((s) => s.length > 2));
-    }
-  }
-
-  return {
-    text: collected.join("\n").replace(/\s+\n/g, "\n").trim(),
-    pageCount,
-  };
+  return parts
+    .join(" ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function decodePdfLiteral(input: string): string {

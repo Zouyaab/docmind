@@ -59,6 +59,22 @@ endstream
     expect(result.note?.toLowerCase()).toMatch(/scanned|ocr|no extractable/);
   });
 
+  it("extracts page-aware PDF segments when multiple Page objects exist", () => {
+    const pdfLike = `%PDF-1.4
+/Type /Page
+BT (Page One Title) Tj ET
+/Type /Page
+BT (Page Two Body) Tj ET
+`;
+    const bytes = new TextEncoder().encode(pdfLike);
+    const result = extractTextFromBytes(bytes, "application/pdf");
+    expect(result.status).toBe("ok");
+    expect(result.pageCount).toBeGreaterThanOrEqual(2);
+    expect(result.pages?.length).toBeGreaterThanOrEqual(2);
+    expect(result.pages?.[0]?.text).toContain("Page One Title");
+    expect(result.pages?.[1]?.text).toContain("Page Two Body");
+  });
+
   it("rejects non-PDF bytes labeled as PDF", () => {
     const bytes = new TextEncoder().encode("not a pdf");
     const result = extractTextFromBytes(bytes, "application/pdf");

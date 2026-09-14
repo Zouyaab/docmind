@@ -4,8 +4,10 @@ This MVP is designed for **offline, local development and evaluation**. Known li
 
 ## Extraction
 
-- PDF parsing uses a heuristic stream extractor, not a production PDF library.
+- PDF parsing uses a heuristic stream extractor with **page-aware provenance** (page numbers +
+  section headings on chunks). It is still not a production PDF library.
 - Scanned PDFs and complex layouts are not supported (returned as `EXTRACTION_EMPTY` / scanned status).
+- Plain text / markdown with form-feed (`\\f`) page breaks is chunked per page.
 
 ## AI providers
 

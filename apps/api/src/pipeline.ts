@@ -7,7 +7,7 @@ import {
   type DecisionResult,
 } from "@docmind/decision-engine";
 import { embedChunks } from "@docmind/embeddings";
-import { chunkText, extractTextFromBytes } from "@docmind/extraction";
+import { chunkExtractedDocument, extractTextFromBytes } from "@docmind/extraction";
 import type { BlobStore } from "@docmind/ingestion";
 import type { DocMindStores } from "@docmind/persistence";
 import type { EmbeddingProvider, LLMProvider } from "@docmind/ai";
@@ -70,13 +70,7 @@ export async function processDocument(
     );
   }
 
-  const chunks = chunkText(documentId, extracted.text).map((chunk) => ({
-    ...chunk,
-    metadata: {
-      ...(chunk.metadata ?? {}),
-      ...(extracted.pageCount ? { documentPageCount: extracted.pageCount } : {}),
-    },
-  }));
+  const chunks = chunkExtractedDocument(documentId, extracted);
   await ctx.stores.chunks.replaceForDocument(documentId, chunks);
 
   const classification = await classifyDocument(chunks.length > 0 ? chunks : extracted.text, {
@@ -106,6 +100,7 @@ export async function processDocument(
       vector: item.vector,
       metadata: {
         pageNumber: chunks.find((c) => c.id === item.chunkId)?.pageNumber,
+        section: chunks.find((c) => c.id === item.chunkId)?.metadata?.section,
       },
     })),
   );
