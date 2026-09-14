@@ -27,10 +27,12 @@ Infrastructure-as-code such as Terraform, Kubernetes, Helm, Pulumi, and Ansible 
 - Text extraction + chunking with offsets/provenance
 - Heuristic + LLM-assisted classification (Mock by default; Ollama optional)
 - In-memory vector search **or** PostgreSQL/pgvector when `DATABASE_URL` is set
-- Citation-aware Q&A with prompt-injection defenses and answer grounding
+- Citation-aware Q&A with prompt-injection defenses, answer grounding, citation validation, and conflicting-evidence detection
 - Deterministic risk/decision rules (separate from LLM interpretation)
 - Fastify OpenAPI (`/docs`), readiness (`/api/v1/ready`), metrics, structured JSON logs
+- Optional webhook error sink (`ERROR_SINK_URL`) with redaction
 - Offline CI (no internet / Ollama / Postgres required for the default test suite)
+- Optional Docker pgvector integration tests (`pnpm test:integration:docker`)
 
 ## Architecture
 
@@ -91,6 +93,7 @@ Copy [`.env.example`](.env.example) to `.env`. Every variable used by the config
 | `OLLAMA_*`              | No            | Optional live model endpoint                 |
 | `RAG_MIN_SCORE`         | No            | Minimum retrieval score for RAG              |
 | `RATE_LIMIT_MAX`        | No            | Requests per minute per client (default 120) |
+| `ERROR_SINK_URL`        | No            | Optional webhook for redacted error events   |
 
 ## Local development
 

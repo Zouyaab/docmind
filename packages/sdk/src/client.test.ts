@@ -20,7 +20,7 @@ describe("DocMindClient", () => {
   it("sends bearer token when configured", async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ name: "DocMind", version: "0.2.0" }),
+      json: async () => ({ name: "DocMind", version: "0.3.0" }),
     });
     const client = new DocMindClient({
       baseUrl: "http://localhost:3000",

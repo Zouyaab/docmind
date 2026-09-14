@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.0] - 2026-09-14
+
+### Added
+
+- Modular API route modules (`documents`, `search`, `ask`, `decide`, `ops`) separated from server bootstrap
+- `pnpm bootstrap` offline fresh-clone validation (frozen install, build, mock AI, no Postgres required)
+- Explicit Postgres integration suite (`pnpm test:integration`) with skip-when-unavailable behavior
+- Docker Compose ephemeral pgvector service + `pnpm test:integration:docker` runner and CI integration job
+- Optional webhook error sink (`ERROR_SINK_URL`) with content redaction and fail-safe delivery
+- Page-aware document chunking / provenance for PDF and multi-page text
+- RAG citation validation (`citationValidated`) and numeric conflicting-evidence detection (`conflicts`)
+
+### Changed
+
+- Workspace packages declare only dependencies they directly import (no accidental hoisting reliance)
+- Ask OpenAPI response documents `citationValidated` and `conflicts`
+- ESLint recognizes Node globals for `scripts/` and `.tools/`
+
+### Documentation
+
+- Architecture notes for dependency layout, provenance, citation validation, and error sinks
+- README bootstrap / offline vs integration test categories
+
 ## [0.2.0] - 2026-09-11
 
 ### Added
